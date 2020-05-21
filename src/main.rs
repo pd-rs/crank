@@ -45,14 +45,19 @@ struct Build {
 }
 
 impl Build {
-    pub fn compile_setup(&self, target_dir: &PathBuf) -> Result<(), Error> {
+    fn setup_path() -> Result<PathBuf, Error> {
+        let playdate_c_api_path = playdate_c_api_path()?;
+        Ok(playdate_c_api_path.join("buildsupport").join("setup.c"))
+    }
+
+    fn compile_setup(&self, target_dir: &PathBuf) -> Result<(), Error> {
         let gcc_compile_static_args = "-g -c -mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
         -mfpu=fpv4-sp-d16 -D__FPU_USED=1 -O2 -falign-functions=16 -fomit-frame-pointer \
         -gdwarf-2 -Wall -Wno-unused -Wstrict-prototypes -Wno-unknown-pragmas -fverbose-asm \
         -ffunction-sections -fdata-sections -DTARGET_PLAYDATE=1 -DTARGET_EXTENSION=1";
         let args_iter = gcc_compile_static_args.split(" ");
         let playdate_c_api_path = playdate_c_api_path()?;
-        let setup_path = playdate_c_api_path.join("buildsupport").join("setup.c");
+        let setup_path = Self::setup_path()?;
         let mut command = Command::new("/usr/local/bin/arm-none-eabi-gcc");
         command
             .args(args_iter)
@@ -69,7 +74,7 @@ impl Build {
         Ok(())
     }
 
-    pub fn link_binary(
+    fn link_binary(
         &self,
         target_dir: &PathBuf,
         example_name: &str,
@@ -106,7 +111,7 @@ impl Build {
         Ok(())
     }
 
-    pub fn make_binary(
+    fn make_binary(
         &self,
         target_dir: &PathBuf,
         example_name: &str,
@@ -136,7 +141,7 @@ impl Build {
         Ok(())
     }
 
-    pub fn make_source_dir(
+    fn make_source_dir(
         &self,
         overall_target_dir: &PathBuf,
         example_title: &str,
@@ -147,7 +152,7 @@ impl Build {
         Ok(pdx_path)
     }
 
-    pub fn run_pdc(&self, source_dir: &PathBuf, dest_dir: &PathBuf) -> Result<(), Error> {
+    fn run_pdc(&self, source_dir: &PathBuf, dest_dir: &PathBuf) -> Result<(), Error> {
         let pdc_path = playdate_sdk_path()?.join("bin").join("pdc");
         let mut cmd = Command::new(pdc_path);
         cmd.arg(source_dir);
@@ -162,7 +167,7 @@ impl Build {
         Ok(())
     }
 
-    pub fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+    fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
         let data_path = Path::new("/Volumes/PLAYDATE");
 
@@ -198,6 +203,40 @@ impl Build {
             .arg("eject")
             .arg(&data_path)
             .status()?;
+        Ok(())
+    }
+
+    fn link_dylib(
+        &self,
+        target_dir: &PathBuf,
+        example_name: &str,
+        source_dir: &PathBuf,
+    ) -> Result<(), Error> {
+        let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
+        let source_dir_path = source_dir.join("pdex.dylib");
+        fs::copy(&lib_target_path, &source_dir_path)?;
+
+        let pdx_bin_path = source_dir.join("pdex.bin");
+        if !pdx_bin_path.exists() {
+            fs::File::create(&pdx_bin_path)?;
+        }
+
+        Ok(())
+    }
+    fn run_simulator(
+        &self,
+        pdx_path: &PathBuf,
+    ) -> Result<(), Error> {
+        let mut cmd = Command::new("open");
+        cmd.arg("-a");
+        cmd.arg("Playdate Simulator");
+        cmd.arg(&pdx_path);
+
+        let status = cmd.status()?;
+        if !status.success() {
+            bail!("open failed with error {:?}", status);
+        }
+
         Ok(())
     }
 
@@ -246,14 +285,13 @@ impl Build {
             let example_title = to_title_case(&example);
             let source_path = self.make_source_dir(&overall_target_dir, &example_title)?;
             let dest_path = overall_target_dir.join(format!("{}.pdx", &example_title));
-            println!("### source_path = {:#?}", source_path);
+            let mut target_dir = project_path.join("target");
+            let dir_name = if self.release { "release" } else { "debug" };
             if self.device {
-                let mut target_dir = project_path.join("target");
-                if self.device {
-                    target_dir = target_dir.join("thumbv7em-none-eabihf")
-                }
-                let dir_name = if self.release { "release" } else { "debug" };
-                target_dir = target_dir.join(dir_name).join("examples");
+                target_dir = target_dir
+                    .join("thumbv7em-none-eabihf")
+                    .join(dir_name)
+                    .join("examples");
                 let lib_file = target_dir.join(format!("lib{}.a", example));
                 self.compile_setup(&target_dir)?;
                 self.link_binary(&target_dir, example, &lib_file)?;
@@ -261,7 +299,10 @@ impl Build {
                 self.run_pdc(&source_path, &dest_path)?;
                 self.run_example(&dest_path, &example_title)?;
             } else {
-                todo!();
+                target_dir = target_dir.join(dir_name).join("examples");
+                self.link_dylib(&target_dir, example, &source_path)?;
+                self.run_pdc(&source_path, &dest_path)?;
+                self.run_simulator(&dest_path)?;
             }
         }
 
