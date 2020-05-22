@@ -286,7 +286,11 @@ impl Build {
         let current_dir = std::fs::canonicalize(std::env::current_dir()?)?;
         let canonical_manifest_path;
         let manifest_path_str;
-        let mut args = vec!["build"];
+        let mut args = if self.device {
+            vec!["xbuild"]
+        } else {
+            vec!["build"]
+        };
 
         let project_path = if let Some(manifest_path) = opt.manifest_path.as_ref() {
             args.push("--manifest-path");
