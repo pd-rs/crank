@@ -1,5 +1,6 @@
 use anyhow::{anyhow, bail, Context, Error};
 use inflector::cases::titlecase::to_title_case;
+use serde_derive::Deserialize;
 use std::{
     fs::{self, OpenOptions},
     io::Write,
@@ -16,6 +17,40 @@ fn playdate_sdk_path() -> Result<PathBuf, Error> {
 
 fn playdate_c_api_path() -> Result<PathBuf, Error> {
     Ok(playdate_sdk_path()?.join("C_API"))
+}
+
+type Assets = Vec<String>;
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct Example {
+    name: String,
+    assets: Assets,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct Manifest {
+    #[serde(default, alias = "example")]
+    examples: Option<Vec<Example>>,
+}
+
+pub fn load_manifest(manifest_path: &Option<PathBuf>) -> Result<Manifest, Error> {
+    let cwd: PathBuf = if let Some(actual_manifest_path) = manifest_path.as_ref() {
+        actual_manifest_path
+            .parent()
+            .expect("manifest_path parent")
+            .to_path_buf()
+    } else {
+        std::fs::canonicalize(std::env::current_dir()?)
+            .context("autotest: canonicalize working directory")?
+    };
+    let manifest_path = cwd.join("Crank.toml");
+    if !manifest_path.exists() {
+        println!("default manifest");
+        return Ok(Manifest::default());
+    }
+    let manifest_contents = fs::read_to_string(manifest_path)?;
+    let manifest = toml::from_str(&manifest_contents)?;
+    Ok(manifest)
 }
 
 #[derive(Debug, StructOpt)]
@@ -152,6 +187,15 @@ impl Build {
         Ok(pdx_path)
     }
 
+    fn copy_assets(
+        &self,
+        _source_dir: &Path,
+        _crank_manifest: &Manifest,
+        _dest_dir: &PathBuf,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+
     fn run_pdc(&self, source_dir: &PathBuf, dest_dir: &PathBuf) -> Result<(), Error> {
         let pdc_path = playdate_sdk_path()?.join("bin").join("pdc");
         let mut cmd = Command::new(pdc_path);
@@ -223,10 +267,8 @@ impl Build {
 
         Ok(())
     }
-    fn run_simulator(
-        &self,
-        pdx_path: &PathBuf,
-    ) -> Result<(), Error> {
+
+    fn run_simulator(&self, pdx_path: &PathBuf) -> Result<(), Error> {
         let mut cmd = Command::new("open");
         cmd.arg("-a");
         cmd.arg("Playdate Simulator");
@@ -240,7 +282,7 @@ impl Build {
         Ok(())
     }
 
-    pub fn execute(&self, opt: &Opt) -> Result<(), Error> {
+    pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
         let current_dir = std::fs::canonicalize(std::env::current_dir()?)?;
         let canonical_manifest_path;
         let manifest_path_str;
@@ -296,11 +338,13 @@ impl Build {
                 self.compile_setup(&target_dir)?;
                 self.link_binary(&target_dir, example, &lib_file)?;
                 self.make_binary(&target_dir, example, &source_path)?;
+                self.copy_assets(&project_path, &crank_manifest, &source_path)?;
                 self.run_pdc(&source_path, &dest_path)?;
                 self.run_example(&dest_path, &example_title)?;
             } else {
                 target_dir = target_dir.join(dir_name).join("examples");
                 self.link_dylib(&target_dir, example, &source_path)?;
+                self.copy_assets(&project_path, &crank_manifest, &source_path)?;
                 self.run_pdc(&source_path, &dest_path)?;
                 self.run_simulator(&dest_path)?;
             }
@@ -326,11 +370,12 @@ struct Opt {
 
 fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
-    println!("opt = {:#?}", opt);
+
+    let crank_manifest = load_manifest(&opt.manifest_path)?;
 
     match &opt.cmd {
         CrankCommand::Build(build) => {
-            build.execute(&opt)?;
+            build.execute(&opt, &crank_manifest)?;
         }
     }
 
