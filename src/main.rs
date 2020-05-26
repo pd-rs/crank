@@ -30,7 +30,15 @@ struct Example {
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Manifest {
     #[serde(default, alias = "example")]
-    examples: Option<Vec<Example>>,
+    examples: Vec<Example>,
+}
+
+impl Manifest {
+    fn get_example(&self, example_name: &str) -> Option<&Example> {
+        self.examples
+            .iter()
+            .find(|example| &example.name == example_name)
+    }
 }
 
 pub fn load_manifest(manifest_path: &Option<PathBuf>) -> Result<Manifest, Error> {
@@ -189,10 +197,24 @@ impl Build {
 
     fn copy_assets(
         &self,
-        _source_dir: &Path,
-        _crank_manifest: &Manifest,
-        _dest_dir: &PathBuf,
+        example: &str,
+        source_dir: &Path,
+        crank_manifest: &Manifest,
+        dest_dir: &PathBuf,
     ) -> Result<(), Error> {
+        let example = crank_manifest.get_example(example);
+        if let Some(example) = example {
+            for asset in &example.assets {
+                let src_path = source_dir.join(asset);
+                let dst_path = dest_dir.join(asset);
+                if let Some(dst_parent) = dst_path.parent() {
+                    println!("## make dir {:#?}", dst_parent);
+                    fs::create_dir_all(&dst_parent)?;
+                }
+                println!("## copy {:#?} to {:#?}", src_path, dst_path);
+                fs::copy(&src_path, &dst_path)?;
+            }
+        }
         Ok(())
     }
 
@@ -207,6 +229,22 @@ impl Build {
         let status = cmd.status()?;
         if !status.success() {
             bail!("pdc failed with error {:?}", status);
+        }
+        Ok(())
+    }
+
+    fn copy_directory(src: &Path, dst: &Path) -> Result<(), Error>{
+        for entry in fs::read_dir(src).context("Reading source game directory")? {
+            let entry = entry.context("bad entry")?;
+            let target_path = dst.join(entry.file_name());
+            if entry.path().is_dir() {
+                fs::create_dir_all(&target_path)
+                    .context(format!("Creating directory {:#?} on device", target_path))?;
+                    Self::copy_directory(&entry.path(), &target_path)?;
+            } else {
+                println!("Copying {:#?} to {:#?}", entry.path(), target_path);
+                fs::copy(entry.path(), target_path).context("copy file")?;
+            }
         }
         Ok(())
     }
@@ -236,12 +274,7 @@ impl Build {
         let games_dir = data_path.join("Games");
         let games_target_dir = games_dir.join(format!("{}.pdx", example_title));
         fs::create_dir_all(&games_target_dir).context("Creating game directory on device")?;
-        for entry in fs::read_dir(pdx_dir).context("Reading source game directory")? {
-            let entry = entry.context("bad entry")?;
-            let target_path = games_target_dir.join(entry.file_name());
-            println!("Copying {:#?} to {:#?}", entry.path(), target_path);
-            fs::copy(entry.path(), target_path).context("copy file")?;
-        }
+        Self::copy_directory(&pdx_dir, &games_target_dir)?;
 
         let _ = Command::new("diskutil")
             .arg("eject")
@@ -342,13 +375,13 @@ impl Build {
                 self.compile_setup(&target_dir)?;
                 self.link_binary(&target_dir, example, &lib_file)?;
                 self.make_binary(&target_dir, example, &source_path)?;
-                self.copy_assets(&project_path, &crank_manifest, &source_path)?;
+                self.copy_assets(example, &project_path, &crank_manifest, &source_path)?;
                 self.run_pdc(&source_path, &dest_path)?;
                 self.run_example(&dest_path, &example_title)?;
             } else {
                 target_dir = target_dir.join(dir_name).join("examples");
                 self.link_dylib(&target_dir, example, &source_path)?;
-                self.copy_assets(&project_path, &crank_manifest, &source_path)?;
+                self.copy_assets(example, &project_path, &crank_manifest, &source_path)?;
                 self.run_pdc(&source_path, &dest_path)?;
                 self.run_simulator(&dest_path)?;
             }
