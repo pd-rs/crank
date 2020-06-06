@@ -1,14 +1,38 @@
-use anyhow::{anyhow, bail, Context, Error};
+use anyhow::{anyhow, bail, Error};
 use inflector::cases::titlecase::to_title_case;
 use serde_derive::Deserialize;
 use std::{
-    fs::{self, OpenOptions},
-    io::Write,
+    fs::{self},
     path::{Path, PathBuf},
     process::Command,
     thread, time,
 };
 use structopt::StructOpt;
+
+#[cfg(unix)]
+use anyhow::Context;
+
+#[cfg(unix)]
+const GCC_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-gcc";
+#[cfg(windows)]
+const GCC_PATH_STR: &'static str =
+    r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-gcc.exe";
+
+#[cfg(unix)]
+const OBJCOPY_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-objcopy";
+#[cfg(windows)]
+const OBJCOPY_PATH_STR: &'static str =
+    r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-objcopy.exe";
+
+#[cfg(unix)]
+const PDUTIL_NAME: &'static str = "pdutil";
+#[cfg(windows)]
+const PDUTIL_NAME: &'static str = "PDUTIL.EXE";
+
+#[cfg(unix)]
+const PDC_NAME: &'static str = "pdc";
+#[cfg(windows)]
+const PDC_NAME: &'static str = "PDC.EXE";
 
 fn playdate_sdk_path() -> Result<PathBuf, Error> {
     let home_dir = dirs::home_dir().ok_or(anyhow!("Can't find home dir"))?;
@@ -48,8 +72,7 @@ pub fn load_manifest(manifest_path: &Option<PathBuf>) -> Result<Manifest, Error>
             .expect("manifest_path parent")
             .to_path_buf()
     } else {
-        std::fs::canonicalize(std::env::current_dir()?)
-            .context("autotest: canonicalize working directory")?
+        std::env::current_dir()?
     };
     let manifest_path = cwd.join("Crank.toml");
     if !manifest_path.exists() {
@@ -101,7 +124,7 @@ impl Build {
         let args_iter = gcc_compile_static_args.split(" ");
         let playdate_c_api_path = playdate_c_api_path()?;
         let setup_path = Self::setup_path()?;
-        let mut command = Command::new("/usr/local/bin/arm-none-eabi-gcc");
+        let mut command = Command::new(GCC_PATH_STR);
         command
             .args(args_iter)
             .arg(setup_path)
@@ -126,7 +149,7 @@ impl Build {
         let gcc_link_static_args = "-mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
         -mfpu=fpv4-sp-d16 -D__FPU_USED=1 -Wl,--gc-sections,--no-warn-mismatch";
 
-        let mut cmd = Command::new("/usr/local/bin/arm-none-eabi-gcc");
+        let mut cmd = Command::new(GCC_PATH_STR);
         let setup_obj_path = target_dir.join("setup.o");
         cmd.arg(setup_obj_path);
         cmd.arg(lib_path);
@@ -160,7 +183,7 @@ impl Build {
         example_name: &str,
         source_dir: &PathBuf,
     ) -> Result<(), Error> {
-        let mut cmd = Command::new("/usr/local/bin/arm-none-eabi-objcopy");
+        let mut cmd = Command::new(OBJCOPY_PATH_STR);
 
         let source_path = target_dir.join(format!("{}.elf", example_name));
         let dest_path = target_dir.join(format!("{}.bin", example_name));
@@ -219,7 +242,7 @@ impl Build {
     }
 
     fn run_pdc(&self, source_dir: &PathBuf, dest_dir: &PathBuf) -> Result<(), Error> {
-        let pdc_path = playdate_sdk_path()?.join("bin").join("pdc");
+        let pdc_path = playdate_sdk_path()?.join("bin").join(PDC_NAME);
         let mut cmd = Command::new(pdc_path);
         cmd.arg(source_dir);
         cmd.arg(dest_dir);
@@ -233,14 +256,15 @@ impl Build {
         Ok(())
     }
 
-    fn copy_directory(src: &Path, dst: &Path) -> Result<(), Error>{
+    #[cfg(unix)]
+    fn copy_directory(src: &Path, dst: &Path) -> Result<(), Error> {
         for entry in fs::read_dir(src).context("Reading source game directory")? {
             let entry = entry.context("bad entry")?;
             let target_path = dst.join(entry.file_name());
             if entry.path().is_dir() {
                 fs::create_dir_all(&target_path)
                     .context(format!("Creating directory {:#?} on device", target_path))?;
-                    Self::copy_directory(&entry.path(), &target_path)?;
+                Self::copy_directory(&entry.path(), &target_path)?;
             } else {
                 println!("Copying {:#?} to {:#?}", entry.path(), target_path);
                 fs::copy(entry.path(), target_path).context("copy file")?;
@@ -249,7 +273,32 @@ impl Build {
         Ok(())
     }
 
+    #[cfg(windows)]
     fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+        let pdutil_path = playdate_sdk_path()?.join("bin").join(PDUTIL_NAME);
+        let device_path = format!("/Games/{}.pdx", example_title);
+        let duration = time::Duration::from_millis(100);
+
+        let _ = Command::new(&pdutil_path)
+            .arg("install")
+            .arg(pdx_dir)
+            .status()?;
+
+        thread::sleep(duration * 5);
+
+        let _ = Command::new(&pdutil_path)
+            .arg("run")
+            .arg(device_path)
+            .status()?;
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+        use std::{
+            fs::{self, OpenOptions},
+            io::Write,
+        };
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
         let data_path = Path::new("/Volumes/PLAYDATE");
 
@@ -316,8 +365,12 @@ impl Build {
     }
 
     pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
-        let current_dir = std::fs::canonicalize(std::env::current_dir()?)?;
-        let canonical_manifest_path;
+        #[cfg(windows)]
+        if !self.device {
+            bail!("Simulator builds are not currently supported on Windows.")
+        }
+
+        let current_dir = std::env::current_dir()?;
         let manifest_path_str;
         let mut args = if self.device {
             vec!["xbuild"]
@@ -327,13 +380,9 @@ impl Build {
 
         let project_path = if let Some(manifest_path) = opt.manifest_path.as_ref() {
             args.push("--manifest-path");
-            canonical_manifest_path = manifest_path.canonicalize().context(format!(
-                "Cannot find manifest at path '{}'",
-                manifest_path.to_string_lossy()
-            ))?;
-            manifest_path_str = canonical_manifest_path.to_string_lossy();
+            manifest_path_str = manifest_path.to_string_lossy();
             args.push(&manifest_path_str);
-            canonical_manifest_path.parent().expect("parent")
+            manifest_path.parent().expect("parent")
         } else {
             current_dir.as_path()
         };
