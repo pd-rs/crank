@@ -25,6 +25,7 @@ const OBJCOPY_PATH_STR: &'static str =
     r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-objcopy.exe";
 
 #[cfg(unix)]
+#[allow(unused)]
 const PDUTIL_NAME: &'static str = "pdutil";
 #[cfg(windows)]
 const PDUTIL_NAME: &'static str = "PDUTIL.EXE";
@@ -296,7 +297,7 @@ impl Build {
     #[cfg(unix)]
     fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
         use std::{
-            fs::{self, OpenOptions},
+            fs::{OpenOptions},
             io::Write,
         };
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
