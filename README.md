@@ -1,6 +1,8 @@
 # crank
 
-Crank is a wrapper for cargo when creating games for the [Playdate handheld gaming system](https://play.date). This is just a tool, the actually Rust wrappers for Playdate are found in its own [repository](https://github.com/rtsuk/playdate).
+Crank is a wrapper for cargo when creating games for the [Playdate handheld gaming system](https://play.date). This is just a tool, the actually Rust wrappers for Playdate are found in its own [repository](https://github.com/rtsuk/crankstart).
+
+This software is not sponsored or supported by Panic.
 
 ## Requirements
 
@@ -20,7 +22,7 @@ Since crank is not yet on crates.io, one needs to download it with git and insta
 
 After that one should be able to run crank
 
-    playdate $ crank build -h
+    crankstart $ crank build -h
     crank-build 0.1.0
     Build binary targeting Playdate device or Simulator
 
@@ -42,4 +44,4 @@ The command `build` is a bit of a misnomer, as it both builds, creates a .pdx di
 
 In order to include assets like images, crank optionally reads a Crank.toml file with lists of files to include in the .pdx directory. See the wrapper repository for an example.
 
-Crank has only been tested on Mac. Rust has good Windows support, so it is possible, but not something the author is interested in pursuing right away.
+Crank is only regularly tested on Mac, but has worked on Windows in the past.
