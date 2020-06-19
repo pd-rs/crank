@@ -77,7 +77,6 @@ pub fn load_manifest(manifest_path: &Option<PathBuf>) -> Result<Manifest, Error>
     };
     let manifest_path = cwd.join("Crank.toml");
     if !manifest_path.exists() {
-        println!("default manifest");
         return Ok(Manifest::default());
     }
     let manifest_contents = fs::read_to_string(manifest_path)?;
@@ -117,6 +116,28 @@ impl Build {
         Ok(playdate_c_api_path.join("buildsupport").join("setup.c"))
     }
 
+    fn get_target_name(&self, opt: &Opt) -> Result<Option<String>, Error> {
+        let mut cmd = cargo_metadata::MetadataCommand::new();
+        if let Some(manifest_path) = &opt.manifest_path {
+            cmd.manifest_path(manifest_path);
+        }
+        cmd.no_deps();
+        let static_lib: String = "staticlib".to_string();
+        let cdylib: String = "cdylib".to_string();
+        let metadata = cmd.exec()?;
+        for package in metadata.packages {
+            if let Some(lib_target) = package
+                .targets
+                .iter()
+                .filter(|target| target.kind.contains(&static_lib) && target.kind.contains(&cdylib))
+                .nth(0)
+            {
+                return Ok(Some(lib_target.name.clone()));
+            }
+        }
+        Ok(None)
+    }
+
     fn compile_setup(&self, target_dir: &PathBuf) -> Result<(), Error> {
         let gcc_compile_static_args = "-g -c -mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
         -mfpu=fpv4-sp-d16 -D__FPU_USED=1 -O2 -falign-functions=16 -fomit-frame-pointer \
@@ -133,7 +154,6 @@ impl Build {
             .arg(playdate_c_api_path)
             .arg("-o")
             .arg(target_dir.join("setup.o"));
-        println!("{:?}", command);
         let status = command.status()?;
         if !status.success() {
             bail!("gcc failed with error {:?}", status);
@@ -168,8 +188,6 @@ impl Build {
         cmd.arg("-o");
         cmd.arg(target_path);
 
-        println!("{:?}", cmd);
-
         let status = cmd.status()?;
         if !status.success() {
             bail!("gcc failed with error {:?}", status);
@@ -193,8 +211,6 @@ impl Build {
         cmd.arg("binary");
         cmd.arg(&source_path);
         cmd.arg(&dest_path);
-
-        println!("{:?}", cmd);
 
         let status = cmd.status()?;
         if !status.success() {
@@ -232,10 +248,8 @@ impl Build {
                 let src_path = source_dir.join(asset);
                 let dst_path = dest_dir.join(asset);
                 if let Some(dst_parent) = dst_path.parent() {
-                    println!("## make dir {:#?}", dst_parent);
                     fs::create_dir_all(&dst_parent)?;
                 }
-                println!("## copy {:#?} to {:#?}", src_path, dst_path);
                 fs::copy(&src_path, &dst_path)?;
             }
         }
@@ -247,8 +261,6 @@ impl Build {
         let mut cmd = Command::new(pdc_path);
         cmd.arg(source_dir);
         cmd.arg(dest_dir);
-
-        println!("{:?}", cmd);
 
         let status = cmd.status()?;
         if !status.success() {
@@ -267,7 +279,6 @@ impl Build {
                     .context(format!("Creating directory {:#?} on device", target_path))?;
                 Self::copy_directory(&entry.path(), &target_path)?;
             } else {
-                println!("Copying {:#?} to {:#?}", entry.path(), target_path);
                 fs::copy(entry.path(), target_path).context("copy file")?;
             }
         }
@@ -296,16 +307,12 @@ impl Build {
 
     #[cfg(unix)]
     fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
-        use std::{
-            fs::{OpenOptions},
-            io::Write,
-        };
+        use std::{fs::OpenOptions, io::Write};
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
         let data_path = Path::new("/Volumes/PLAYDATE");
 
         let duration = time::Duration::from_millis(100);
         if modem_path.exists() {
-            println!("Found modem file, switching to disk");
             let mut file = OpenOptions::new().write(true).open(&modem_path)?;
             writeln!(file, "datadisk")?;
             while modem_path.exists() {
@@ -314,11 +321,9 @@ impl Build {
         }
 
         while !data_path.exists() {
-            println!("Waiting for disk");
             thread::sleep(duration);
         }
 
-        println!("Found disk");
         thread::sleep(duration * 5);
 
         let games_dir = data_path.join("Games");
@@ -366,9 +371,10 @@ impl Build {
     }
 
     pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
-        #[cfg(windows)]
-        if !self.device {
-            bail!("Simulator builds are not currently supported on Windows.")
+        if cfg!(windows) {
+            if !self.device {
+                bail!("Simulator builds are not currently supported on Windows.")
+            }
         }
 
         let current_dir = std::env::current_dir()?;
@@ -388,10 +394,18 @@ impl Build {
             current_dir.as_path()
         };
 
-        if let Some(example) = self.example.as_ref() {
+        let (target_name, target_path) = if let Some(example) = self.example.as_ref() {
             args.push("--example");
-            args.push(&example)
-        }
+            args.push(example);
+            (example.clone(), format!("examples/"))
+        } else {
+            args.push("--lib");
+            if let Some(target_name) = self.get_target_name(&opt)? {
+                (target_name.clone(), "".to_string())
+            } else {
+                bail!("Could not find compatible target");
+            }
+        };
 
         if self.release {
             args.push("--release");
@@ -402,39 +416,32 @@ impl Build {
             args.push("thumbv7em-none-eabihf");
         }
 
-        println!("args = {:#?}", args);
-
         let status = Command::new("cargo").args(args).status()?;
         if !status.success() {
             bail!("cargo failed with error {:?}", status);
         }
 
-        if let Some(example) = &self.example {
-            let overall_target_dir = project_path.join("target");
-            let example_title = to_title_case(&example);
-            let source_path = self.make_source_dir(&overall_target_dir, &example_title)?;
-            let dest_path = overall_target_dir.join(format!("{}.pdx", &example_title));
-            let mut target_dir = project_path.join("target");
-            let dir_name = if self.release { "release" } else { "debug" };
-            if self.device {
-                target_dir = target_dir
-                    .join("thumbv7em-none-eabihf")
-                    .join(dir_name)
-                    .join("examples");
-                let lib_file = target_dir.join(format!("lib{}.a", example));
-                self.compile_setup(&target_dir)?;
-                self.link_binary(&target_dir, example, &lib_file)?;
-                self.make_binary(&target_dir, example, &source_path)?;
-                self.copy_assets(example, &project_path, &crank_manifest, &source_path)?;
-                self.run_pdc(&source_path, &dest_path)?;
-                self.run_example(&dest_path, &example_title)?;
-            } else {
-                target_dir = target_dir.join(dir_name).join("examples");
-                self.link_dylib(&target_dir, example, &source_path)?;
-                self.copy_assets(example, &project_path, &crank_manifest, &source_path)?;
-                self.run_pdc(&source_path, &dest_path)?;
-                self.run_simulator(&dest_path)?;
-            }
+        let overall_target_dir = project_path.join("target");
+        let game_title = to_title_case(&target_name);
+        let source_path = self.make_source_dir(&overall_target_dir, &game_title)?;
+        let dest_path = overall_target_dir.join(format!("{}.pdx", &game_title));
+        let mut target_dir = project_path.join("target");
+        let dir_name = if self.release { "release" } else { "debug" };
+        if self.device {
+            target_dir = target_dir.join("thumbv7em-none-eabihf").join(dir_name);
+            let lib_file = target_dir.join(format!("{}lib{}.a", target_path, target_name));
+            self.compile_setup(&target_dir)?;
+            self.link_binary(&target_dir, &target_name, &lib_file)?;
+            self.make_binary(&target_dir, &target_name, &source_path)?;
+            self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
+            self.run_pdc(&source_path, &dest_path)?;
+            self.run_example(&dest_path, &game_title)?;
+        } else {
+            target_dir = target_dir.join(dir_name).join(target_path);
+            self.link_dylib(&target_dir, &target_name, &source_path)?;
+            self.copy_assets(&game_title, &project_path, &crank_manifest, &source_path)?;
+            self.run_pdc(&source_path, &dest_path)?;
+            self.run_simulator(&dest_path)?;
         }
 
         Ok(())

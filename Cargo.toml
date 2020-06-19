@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.31"
+cargo_metadata = "0.10.0"
 dirs = "2.0.2"
 Inflector = "0.11.4"
 serde = "1.0.110"
