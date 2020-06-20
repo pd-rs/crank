@@ -11,6 +11,8 @@ anyhow = "1.0.31"
 cargo_metadata = "0.10.0"
 dirs = "2.0.2"
 Inflector = "0.11.4"
+log = { version = "0.4.8", features = ["max_level_trace", "release_max_level_trace"] }
+pretty_env_logger = "0.4.0"
 serde = "1.0.110"
 serde_derive = "1.0.110"
 structopt = "0.3.14"

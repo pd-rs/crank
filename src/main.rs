@@ -1,7 +1,9 @@
 use anyhow::{anyhow, bail, Error};
 use inflector::cases::titlecase::to_title_case;
+use log::info;
 use serde_derive::Deserialize;
 use std::{
+    env,
     fs::{self},
     path::{Path, PathBuf},
     process::Command,
@@ -47,22 +49,22 @@ fn playdate_c_api_path() -> Result<PathBuf, Error> {
 type Assets = Vec<String>;
 
 #[derive(Clone, Debug, Default, Deserialize)]
-struct Example {
+struct Target {
     name: String,
     assets: Assets,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
 pub struct Manifest {
-    #[serde(default, alias = "example")]
-    examples: Vec<Example>,
+    #[serde(default, alias = "target")]
+    targets: Vec<Target>,
 }
 
 impl Manifest {
-    fn get_example(&self, example_name: &str) -> Option<&Example> {
-        self.examples
+    fn get_target(&self, target_name: &str) -> Option<&Target> {
+        self.targets
             .iter()
-            .find(|example| &example.name == example_name)
+            .find(|target| &target.name == target_name)
     }
 }
 
@@ -154,6 +156,7 @@ impl Build {
             .arg(playdate_c_api_path)
             .arg("-o")
             .arg(target_dir.join("setup.o"));
+        info!("compile_setup: {:?}", command);
         let status = command.status()?;
         if !status.success() {
             bail!("gcc failed with error {:?}", status);
@@ -188,6 +191,8 @@ impl Build {
         cmd.arg("-o");
         cmd.arg(target_path);
 
+        info!("link_binary: {:?}", cmd);
+
         let status = cmd.status()?;
         if !status.success() {
             bail!("gcc failed with error {:?}", status);
@@ -212,6 +217,8 @@ impl Build {
         cmd.arg(&source_path);
         cmd.arg(&dest_path);
 
+        info!("make_binary: {:?}", cmd);
+
         let status = cmd.status()?;
         if !status.success() {
             bail!("objcopy failed with error {:?}", status);
@@ -229,6 +236,7 @@ impl Build {
         overall_target_dir: &PathBuf,
         example_title: &str,
     ) -> Result<PathBuf, Error> {
+        info!("make_source_dir");
         let pdx_path = overall_target_dir.join(example_title);
         fs::create_dir_all(&pdx_path)?;
 
@@ -237,16 +245,18 @@ impl Build {
 
     fn copy_assets(
         &self,
-        example: &str,
+        target_name: &str,
         source_dir: &Path,
         crank_manifest: &Manifest,
         dest_dir: &PathBuf,
     ) -> Result<(), Error> {
-        let example = crank_manifest.get_example(example);
-        if let Some(example) = example {
-            for asset in &example.assets {
+        info!("copy_assets");
+        let target = crank_manifest.get_target(target_name);
+        if let Some(target) = target {
+            for asset in &target.assets {
                 let src_path = source_dir.join(asset);
                 let dst_path = dest_dir.join(asset);
+                info!("copy {:?} to {:?}", src_path, dst_path);
                 if let Some(dst_parent) = dst_path.parent() {
                     fs::create_dir_all(&dst_parent)?;
                 }
@@ -257,6 +267,7 @@ impl Build {
     }
 
     fn run_pdc(&self, source_dir: &PathBuf, dest_dir: &PathBuf) -> Result<(), Error> {
+        info!("run_pdc");
         let pdc_path = playdate_sdk_path()?.join("bin").join(PDC_NAME);
         let mut cmd = Command::new(pdc_path);
         cmd.arg(source_dir);
@@ -271,6 +282,7 @@ impl Build {
 
     #[cfg(unix)]
     fn copy_directory(src: &Path, dst: &Path) -> Result<(), Error> {
+        info!("copy_directory {:?} -> {:?}", src, dst);
         for entry in fs::read_dir(src).context("Reading source game directory")? {
             let entry = entry.context("bad entry")?;
             let target_path = dst.join(entry.file_name());
@@ -279,6 +291,7 @@ impl Build {
                     .context(format!("Creating directory {:#?} on device", target_path))?;
                 Self::copy_directory(&entry.path(), &target_path)?;
             } else {
+                info!("copy_file {:?} -> {:?}", entry.path(), target_path);
                 fs::copy(entry.path(), target_path).context("copy file")?;
             }
         }
@@ -286,7 +299,8 @@ impl Build {
     }
 
     #[cfg(windows)]
-    fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+    fn run_target(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+        info!("run_target");
         let pdutil_path = playdate_sdk_path()?.join("bin").join(PDUTIL_NAME);
         let device_path = format!("/Games/{}.pdx", example_title);
         let duration = time::Duration::from_millis(100);
@@ -306,7 +320,8 @@ impl Build {
     }
 
     #[cfg(unix)]
-    fn run_example(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+    fn run_target(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
+        info!("run_target");
         use std::{fs::OpenOptions, io::Write};
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
         let data_path = Path::new("/Volumes/PLAYDATE");
@@ -344,6 +359,7 @@ impl Build {
         example_name: &str,
         source_dir: &PathBuf,
     ) -> Result<(), Error> {
+        info!("link_dylib");
         let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
         let source_dir_path = source_dir.join("pdex.dylib");
         fs::copy(&lib_target_path, &source_dir_path)?;
@@ -357,6 +373,7 @@ impl Build {
     }
 
     fn run_simulator(&self, pdx_path: &PathBuf) -> Result<(), Error> {
+        info!("run_simulator");
         let mut cmd = Command::new("open");
         cmd.arg("-a");
         cmd.arg("Playdate Simulator");
@@ -371,6 +388,7 @@ impl Build {
     }
 
     pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
+        info!("building");
         if cfg!(windows) {
             if !self.device {
                 bail!("Simulator builds are not currently supported on Windows.")
@@ -435,11 +453,11 @@ impl Build {
             self.make_binary(&target_dir, &target_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
-            self.run_example(&dest_path, &game_title)?;
+            self.run_target(&dest_path, &game_title)?;
         } else {
             target_dir = target_dir.join(dir_name).join(target_path);
             self.link_dylib(&target_dir, &target_name, &source_path)?;
-            self.copy_assets(&game_title, &project_path, &crank_manifest, &source_path)?;
+            self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
             self.run_simulator(&dest_path)?;
         }
@@ -465,7 +483,17 @@ struct Opt {
 fn main() -> Result<(), Error> {
     let opt = Opt::from_args();
 
+    if opt.verbose {
+        env::set_var("RUST_LOG", "info");
+    }
+
+    pretty_env_logger::init();
+
+    info!("starting");
+
     let crank_manifest = load_manifest(&opt.manifest_path)?;
+
+    info!("manifest = {:#?}", crank_manifest);
 
     match &opt.cmd {
         CrankCommand::Build(build) => {
