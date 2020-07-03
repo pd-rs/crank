@@ -10,6 +10,8 @@ use std::{
     thread, time,
 };
 use structopt::StructOpt;
+use zip::{write::FileOptions, CompressionMethod};
+use zip_extensions::zip_create_from_directory_with_options;
 
 #[cfg(unix)]
 use anyhow::Context;
@@ -91,9 +93,13 @@ pub fn load_manifest(manifest_path: &Option<PathBuf>) -> Result<Manifest, Error>
 enum CrankCommand {
     /// Build binary targeting Playdate device or Simulator
     Build(Build),
+    /// Build binary targeting Playdate device or Simulator and run it
+    Run(Build),
+    /// Make a pdx file for both device and simulator and compress it.
+    Package(Package),
 }
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Clone)]
 struct Build {
     /// Build for the Playdate device.
     #[structopt(long)]
@@ -387,7 +393,11 @@ impl Build {
         Ok(())
     }
 
-    pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
+    pub fn execute(
+        &self,
+        opt: &Opt,
+        crank_manifest: &Manifest,
+    ) -> Result<(PathBuf, String), Error> {
         info!("building");
         if cfg!(windows) {
             if !self.device {
@@ -453,15 +463,91 @@ impl Build {
             self.make_binary(&target_dir, &target_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
-            self.run_target(&dest_path, &game_title)?;
+            if self.run {
+                self.run_target(&dest_path, &game_title)?;
+            }
         } else {
             target_dir = target_dir.join(dir_name).join(target_path);
             self.link_dylib(&target_dir, &target_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
-            self.run_simulator(&dest_path)?;
+            if self.run {
+                self.run_simulator(&dest_path)?;
+            }
         }
 
+        Ok((dest_path, game_title))
+    }
+}
+
+#[derive(Debug, StructOpt)]
+struct Package {
+    /// Build a specific example from the examples/ dir.
+    #[structopt(long)]
+    example: Option<String>,
+
+    /// clean before building
+    #[structopt(long)]
+    clean: bool,
+
+    /// Reveal the resulting archive in the Finder/Exporer
+    #[structopt(long)]
+    reveal: bool,
+}
+
+impl Package {
+    pub fn execute(&self, opt: &Opt, crank_manifest: &Manifest) -> Result<(), Error> {
+        if self.clean {
+            info!("cleaning");
+            let manifest_path_str;
+            let mut args = Vec::new();
+            if let Some(manifest_path) = opt.manifest_path.as_ref() {
+                args.push("--manifest-path");
+                manifest_path_str = manifest_path.to_string_lossy();
+                args.push(&manifest_path_str);
+            };
+
+            let status = Command::new("cargo").arg("clean").args(args).status()?;
+            if !status.success() {
+                bail!("cargo failed with error {:?}", status);
+            }
+        }
+        let device_build = Build {
+            device: true,
+            example: self.example.clone(),
+            release: true,
+            run: false,
+        };
+        device_build.execute(opt, crank_manifest)?;
+
+        let sim_build = Build {
+            device: false,
+            example: self.example.clone(),
+            release: true,
+            run: false,
+        };
+
+        let (target_dir, game_title) = sim_build.execute(opt, crank_manifest)?;
+        let parent = target_dir.parent().expect("parent");
+        let target_archive = parent.join(format!("{}.pdx.zip", game_title));
+        info!("target_dir {:#?}", target_dir);
+        info!("target_archive {:#?}", target_archive);
+        fs::remove_dir_all(&target_archive).unwrap_or_else(|_err| ());
+        let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
+        zip_create_from_directory_with_options(&target_archive, &target_dir, options)?;
+        #[cfg(windows)]
+        if self.reveal {
+            let _ = Command::new("Explorer")
+                .arg(format!("/Select,{}", target_archive.to_string_lossy()))
+                .status()?;
+        }
+        #[cfg(target_os = "macos")]
+        if self.reveal {
+            let _ = Command::new("open")
+                .arg("-R")
+                .arg(target_archive)
+                .status()?;
+        }
         Ok(())
     }
 }
@@ -498,6 +584,15 @@ fn main() -> Result<(), Error> {
     match &opt.cmd {
         CrankCommand::Build(build) => {
             build.execute(&opt, &crank_manifest)?;
+        }
+        CrankCommand::Run(build) => {
+            let build_and_run = Build {
+                run: true, ..build.clone()
+            };
+            build_and_run.execute(&opt, &crank_manifest)?;
+        }
+        CrankCommand::Package(package) => {
+            package.execute(&opt, &crank_manifest)?;
         }
     }
 
