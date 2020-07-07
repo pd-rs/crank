@@ -328,14 +328,18 @@ impl Build {
     #[cfg(unix)]
     fn run_target(&self, pdx_dir: &PathBuf, example_title: &str) -> Result<(), Error> {
         info!("run_target");
-        use std::{fs::OpenOptions, io::Write};
+
+        let pdutil_path = playdate_sdk_path()?.join("bin").join(PDUTIL_NAME);
         let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
         let data_path = Path::new("/Volumes/PLAYDATE");
 
         let duration = time::Duration::from_millis(100);
         if modem_path.exists() {
-            let mut file = OpenOptions::new().write(true).open(&modem_path)?;
-            writeln!(file, "datadisk")?;
+            let mut cmd = Command::new(&pdutil_path);
+            cmd.arg(modem_path).arg("datadisk").arg(pdx_dir);
+            info!("datadisk cmd: {:#?}", cmd);
+            let _ = cmd.status()?;
+
             while modem_path.exists() {
                 thread::sleep(duration);
             }
@@ -348,14 +352,27 @@ impl Build {
         thread::sleep(duration * 5);
 
         let games_dir = data_path.join("Games");
-        let games_target_dir = games_dir.join(format!("{}.pdx", example_title));
+        let game_device_dir = format!("{}.pdx", example_title);
+        let games_target_dir = games_dir.join(&game_device_dir);
         fs::create_dir_all(&games_target_dir).context("Creating game directory on device")?;
         Self::copy_directory(&pdx_dir, &games_target_dir)?;
 
-        let _ = Command::new("diskutil")
-            .arg("eject")
-            .arg(&data_path)
-            .status()?;
+        let mut cmd = Command::new("diskutil");
+        cmd.arg("eject").arg(&data_path);
+        info!("eject cmd: {:#?}", cmd);
+        let _ = cmd.status()?;
+
+        while !modem_path.exists() {
+            thread::sleep(duration);
+        }
+
+        let mut cmd = Command::new(&pdutil_path);
+        cmd.arg(modem_path)
+            .arg("run")
+            .arg(format!("/Games/{}", game_device_dir));
+        info!("run cmd: {:#?}", cmd);
+        let _ = cmd.status()?;
+
         Ok(())
     }
 
@@ -587,7 +604,8 @@ fn main() -> Result<(), Error> {
         }
         CrankCommand::Run(build) => {
             let build_and_run = Build {
-                run: true, ..build.clone()
+                run: true,
+                ..build.clone()
             };
             build_and_run.execute(&opt, &crank_manifest)?;
         }
