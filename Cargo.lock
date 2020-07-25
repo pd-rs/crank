@@ -160,7 +160,7 @@ checksum = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
 
 [[package]]
 name = "crank"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "Inflector",
  "anyhow",
@@ -672,9 +672,9 @@ dependencies = [
 
 [[package]]
 name = "zip-extensions"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9adcf027b355870f62cabaed021f9028231d2d84cad6e30a7abdaa4dc0390edd"
+checksum = "bd7b6215e7933f19dd3c5fd17ecb8b0433318ea96862925a68a8c01ad920e3b9"
 dependencies = [
  "zip",
 ]
