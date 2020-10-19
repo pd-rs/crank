@@ -4,6 +4,8 @@ Crank is a wrapper for cargo when creating games for the [Playdate handheld gami
 
 This software is not sponsored or supported by Panic.
 
+Note: Development is on hold until the SDK is made available to the public.
+
 ## Requirements
 
 The Playdate SDK installed in `$HOME/Developer/PlaydateSDK`.
