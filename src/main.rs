@@ -330,7 +330,7 @@ impl Build {
         info!("run_target");
 
         let pdutil_path = playdate_sdk_path()?.join("bin").join(PDUTIL_NAME);
-        let modem_path = Path::new("/dev/cu.usbmodem00000000001A1");
+        let modem_path = Path::new("/dev/cu.usbmodemPDU1_Y0005491");
         let data_path = Path::new("/Volumes/PLAYDATE");
 
         let duration = time::Duration::from_millis(100);
@@ -354,7 +354,7 @@ impl Build {
         let games_dir = data_path.join("Games");
         let game_device_dir = format!("{}.pdx", example_title);
         let games_target_dir = games_dir.join(&game_device_dir);
-        fs::create_dir_all(&games_target_dir).context("Creating game directory on device")?;
+        fs::create_dir(&games_target_dir).context("Creating game directory on device")?;
         Self::copy_directory(&pdx_dir, &games_target_dir)?;
 
         let mut cmd = Command::new("diskutil");
