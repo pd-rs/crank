@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Error};
 use inflector::cases::titlecase::to_title_case;
-use log::info;
+use log::{info, debug};
 use serde_derive::Deserialize;
 use std::{
     env,
@@ -39,9 +39,14 @@ const PDC_NAME: &'static str = "pdc";
 #[cfg(windows)]
 const PDC_NAME: &'static str = "PDC.EXE";
 
+#[cfg(unix)]
+const SDK_DIR: &'static str = "Developer";
+#[cfg(windows)]
+const SDK_DIR: &'static str = "Documents";
+
 fn playdate_sdk_path() -> Result<PathBuf, Error> {
     let home_dir = dirs::home_dir().ok_or(anyhow!("Can't find home dir"))?;
-    Ok(home_dir.join("Developer").join("PlaydateSDK"))
+    Ok(home_dir.join(SDK_DIR).join("PlaydateSDK"))
 }
 
 fn playdate_c_api_path() -> Result<PathBuf, Error> {
@@ -279,6 +284,8 @@ impl Build {
         cmd.arg(source_dir);
         cmd.arg(dest_dir);
 
+        debug!("{:?}", cmd);
+
         let status = cmd.status()?;
         if !status.success() {
             bail!("pdc failed with error {:?}", status);
@@ -383,9 +390,22 @@ impl Build {
         source_dir: &PathBuf,
     ) -> Result<(), Error> {
         info!("link_dylib");
-        let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
-        let source_dir_path = source_dir.join("pdex.dylib");
-        fs::copy(&lib_target_path, &source_dir_path)?;
+
+        #[cfg(windows)]
+        {
+            let lib_target_path = target_dir.join(format!("{}.dll", example_name));
+            let source_dir_path = source_dir.join("pdex.dll");
+            debug!("copy: {:?} -> {:?}", lib_target_path, source_dir_path);
+            fs::copy(&lib_target_path, &source_dir_path)?;
+        }
+
+        #[cfg(unix)]
+        {
+            let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
+            let source_dir_path = source_dir.join("pdex.dylib");
+            debug!("copy: {:?} -> {:?}", lib_target_path, source_dir_path);
+            fs::copy(&lib_target_path, &source_dir_path)?;
+        }
 
         let pdx_bin_path = source_dir.join("pdex.bin");
         if !pdx_bin_path.exists() {
@@ -397,12 +417,22 @@ impl Build {
 
     fn run_simulator(&self, pdx_path: &PathBuf) -> Result<(), Error> {
         info!("run_simulator");
-        let mut cmd = Command::new("open");
-        cmd.arg("-a");
-        cmd.arg("Playdate Simulator");
-        cmd.arg(&pdx_path);
+        #[cfg(windows)]
+        let status = {
+            let mut cmd = Command::new("PlaydateSimulator.exe");
+            cmd.arg(&pdx_path);
+            cmd.status()?
+        };
 
-        let status = cmd.status()?;
+        #[cfg(unix)]
+        let status = {
+            let mut cmd = Command::new("open");
+            cmd.arg("-a");
+            cmd.arg("Playdate Simulator");
+            cmd.arg(&pdx_path);
+            cmd.status()?
+        };
+
         if !status.success() {
             bail!("open failed with error {:?}", status);
         }
@@ -416,11 +446,6 @@ impl Build {
         crank_manifest: &Manifest,
     ) -> Result<(PathBuf, String), Error> {
         info!("building");
-        if cfg!(windows) {
-            if !self.device {
-                bail!("Simulator builds are not currently supported on Windows.")
-            }
-        }
 
         let current_dir = std::env::current_dir()?;
         let manifest_path_str;
@@ -461,7 +486,11 @@ impl Build {
             args.push("thumbv7em-none-eabihf");
         }
 
-        let status = Command::new("cargo").args(args).status()?;
+        let mut command = Command::new("cargo");
+        command.args(args);
+        info!("build command: {:?}", command);
+
+        let status = command.status()?;
         if !status.success() {
             bail!("cargo failed with error {:?}", status);
         }
@@ -470,6 +499,9 @@ impl Build {
         let game_title = to_title_case(&target_name);
         let source_path = self.make_source_dir(&overall_target_dir, &game_title)?;
         let dest_path = overall_target_dir.join(format!("{}.pdx", &game_title));
+        if dest_path.exists() {
+            fs::remove_dir_all(&dest_path).unwrap_or_else(|_err| ());
+        }
         let mut target_dir = project_path.join("target");
         let dir_name = if self.release { "release" } else { "debug" };
         if self.device {
