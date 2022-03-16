@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Error};
 use inflector::cases::titlecase::to_title_case;
-use log::{info, debug};
+use log::{debug, info};
 use serde_derive::Deserialize;
 use std::{
     env,
@@ -15,6 +15,8 @@ use zip_extensions::zip_create_from_directory_with_options;
 
 #[cfg(unix)]
 use anyhow::Context;
+
+mod config;
 
 #[cfg(unix)]
 const GCC_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-gcc";
@@ -44,7 +46,28 @@ const SDK_DIR: &'static str = "Developer";
 #[cfg(windows)]
 const SDK_DIR: &'static str = "Documents";
 
+fn playdate_sdk_cfg() -> Result<config::SdkCfg, Error> {
+    let cfg_path = dirs::home_dir()
+        .ok_or(anyhow!("Can't find home dir"))?
+        .join(config::CFG_DIR)
+        .join(config::CFG_FILENAME);
+    fs::read_to_string(cfg_path)?.parse()
+}
+
 fn playdate_sdk_path() -> Result<PathBuf, Error> {
+    match playdate_sdk_cfg() {
+        Err(_) => {
+            debug!("Unable to read PlaydateSDK config from home dir, so using default.");
+            playdate_sdk_path_default()
+        }
+        Ok(cfg) => cfg.sdk_path().map(|p| Ok(p)).unwrap_or_else(|| {
+            debug!("Unable to determine PlaydateSDK path by config, so using default.");
+            playdate_sdk_path_default()
+        }),
+    }
+}
+
+fn playdate_sdk_path_default() -> Result<PathBuf, Error> {
     let home_dir = dirs::home_dir().ok_or(anyhow!("Can't find home dir"))?;
     Ok(home_dir.join(SDK_DIR).join("PlaydateSDK"))
 }
