@@ -12,7 +12,9 @@ The Playdate SDK installed in `$HOME/Developer/PlaydateSDK`.
 
 Rust, easiest installed via [rustup](https://rustup.rs)
 
-[cargo-xbuild](https://github.com/rust-osdev/cargo-xbuild), installed with `cargo install cargo-xbuild`, if you want to build for the Playdate device rather than the simulator.
+Rust toolchains __nightly__ needed for [build-std][] feature, installed with `rustup install nightly && rustup component add rust-src --toolchain nightly`, if you want to build for the Playdate device rather than the simulator.
+
+[build-std]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#build-std
 
 ## Installation
 
