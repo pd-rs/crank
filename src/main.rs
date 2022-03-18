@@ -473,7 +473,7 @@ impl Build {
         let current_dir = std::env::current_dir()?;
         let manifest_path_str;
         let mut args = if self.device {
-            vec!["xbuild"]
+            vec!["+nightly", "build", "-Z", "build-std"]
         } else {
             vec!["build"]
         };
