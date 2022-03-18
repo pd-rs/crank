@@ -384,7 +384,7 @@ impl Build {
         let games_dir = data_path.join("Games");
         let game_device_dir = format!("{}.pdx", example_title);
         let games_target_dir = games_dir.join(&game_device_dir);
-        fs::create_dir(&games_target_dir).context("Creating game directory on device")?;
+        fs::create_dir(&games_target_dir).ok();
         Self::copy_directory(&pdx_dir, &games_target_dir)?;
 
         let mut cmd = Command::new("diskutil");

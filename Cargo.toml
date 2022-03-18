@@ -1,6 +1,6 @@
 [package]
 name = "crank"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Rob Tsuk <robtsuk@google.com>"]
 edition = "2018"
 
