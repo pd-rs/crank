@@ -45,6 +45,7 @@ jobs:
         with:
           profile: minimal
           components: rustfmt
+          toolchain: stable
 
       - name: Check
         run: cargo fmt -- --check
@@ -62,7 +63,8 @@ jobs:
         # https://download-keycdn.panic.com/playdate_sdk/PlaydateSDK-#{version}.pkg
         os:
           - macos-latest
-          - ubuntu-latest
+          # TODO: enable linux & windows and fix the crank
+          # - ubuntu-latest
           # - windows-latest
         sdk:
           - latest
@@ -117,9 +119,6 @@ jobs:
         run: |
           which pdc
           pdc --version
-
-      # temp, remove when #8 merged
-      - run: cargo install cargo-xbuild
 
       - name: Build Examples
         env:
