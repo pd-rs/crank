@@ -1,0 +1,132 @@
+name: Tests
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+env:
+  RUSTUP_MAX_RETRIES: 10
+  CARGO_INCREMENTAL: 1
+  CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Tests
+        run: cargo test --verbose
+
+  format:
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          components: rustfmt
+          toolchain: stable
+
+      - name: Check
+        run: cargo fmt -- --check
+
+  integration:
+    defaults:
+      run:
+        shell: bash
+
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          # TODO: enable linux & windows and fix the crank
+          # - ubuntu-latest
+          # - windows-latest
+        sdk:
+          - latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: rust-src
+          target: thumbv7em-none-eabihf
+          profile: minimal
+          override: true
+
+      - name: Install
+        run: cargo install --path . --force
+
+      - name: Checkout Crankstart
+        uses: actions/checkout@v3
+        with:
+          repository: rtsuk/crankstart
+          path: crankstart
+
+      - name: install SDK (macos)
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/PlaydateSDK-${{ matrix.sdk }}.pkg" -o sdk.pkg
+          sudo installer -store -pkg "sdk.pkg" -target /
+          cat ~/.Playdate/config
+
+      - name: install SDK (linux)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/Linux/PlaydateSDK-${{ matrix.sdk }}.tar.gz" -o sdk.tar.gz
+          mkdir sdk
+          tar -zxf sdk.tar.gz -C sdk
+          cd sdk/*/
+          sudo ./setup.sh || true
+          echo "PLAYDATE_SDK_PATH=$PWD" >> $GITHUB_ENV
+          echo "$PWD/bin" >> $GITHUB_PATH
+          # echo "$PLAYDATE_SDK_PATH" > "$HOME/.Playdate/config"
+
+      - name: install SDK (windows)
+        if: ${{ matrix.os == 'windows-latest' }}
+        run: |
+          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-${{ matrix.sdk }}.exe" -o sdk.exe
+          # TODO: install sdk.exe
+          ./sdk.exe --quiet
+
+      - name: info
+        run: |
+          which pdc
+          pdc --version
+
+      - name: Build Examples
+        env:
+          RUST_LOG: trace
+        run: |
+          cd crankstart
+          # build projects without graphical dependencies:
+          # hello world
+          crank build --release --example=hello_world
+          crank build --release --example=hello_world --device
+          # life game
+          crank build --release --example=life
+          crank build --release --example=life --device

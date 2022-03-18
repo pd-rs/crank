@@ -1,7 +1,7 @@
+use super::Error;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
-use super::Error;
 
 pub const CFG_DIR: &'static str = ".Playdate";
 pub const CFG_FILENAME: &'static str = "config";

@@ -414,21 +414,23 @@ impl Build {
     ) -> Result<(), Error> {
         info!("link_dylib");
 
-        #[cfg(windows)]
-        {
-            let lib_target_path = target_dir.join(format!("{}.dll", example_name));
-            let source_dir_path = source_dir.join("pdex.dll");
-            debug!("copy: {:?} -> {:?}", lib_target_path, source_dir_path);
-            fs::copy(&lib_target_path, &source_dir_path)?;
-        }
-
-        #[cfg(unix)]
-        {
+        let (lib_target_path, source_dir_path) = if cfg!(target_os = "macos") {
             let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
             let source_dir_path = source_dir.join("pdex.dylib");
-            debug!("copy: {:?} -> {:?}", lib_target_path, source_dir_path);
-            fs::copy(&lib_target_path, &source_dir_path)?;
-        }
+            (lib_target_path, source_dir_path)
+        } else if cfg!(unix) {
+            let lib_target_path = target_dir.join(format!("lib{}.so", example_name));
+            let source_dir_path = source_dir.join("pdex.so");
+            (lib_target_path, source_dir_path)
+        } else if cfg!(windows) {
+            let lib_target_path = target_dir.join(format!("{}.dll", example_name));
+            let source_dir_path = source_dir.join("pdex.dll");
+            (lib_target_path, source_dir_path)
+        } else {
+            unreachable!("platform not supported")
+        };
+        debug!("copy: {:?} -> {:?}", lib_target_path, source_dir_path);
+        fs::copy(&lib_target_path, &source_dir_path)?;
 
         let pdx_bin_path = source_dir.join("pdex.bin");
         if !pdx_bin_path.exists() {
