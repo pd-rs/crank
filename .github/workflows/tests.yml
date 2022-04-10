@@ -61,8 +61,8 @@ jobs:
       matrix:
         os:
           - macos-latest
-          # TODO: enable linux & windows and fix the crank
-          # - ubuntu-latest
+          - ubuntu-latest
+          # TODO: enable windows and fix the crank
           # - windows-latest
         sdk:
           - latest
