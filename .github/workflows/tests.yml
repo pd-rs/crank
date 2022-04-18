@@ -65,7 +65,7 @@ jobs:
           # - ubuntu-latest
           # - windows-latest
         sdk:
-          - 1.9.2
+          - latest
 
     steps:
       - uses: actions/checkout@v2
@@ -90,8 +90,9 @@ jobs:
       - name: install SDK (macos)
         if: ${{ matrix.os == 'macos-latest' }}
         run: |
-          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/PlaydateSDK-${{ matrix.sdk }}.pkg" -o sdk.pkg
-          sudo installer -store -pkg "sdk.pkg" -target /
+          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/PlaydateSDK-${{ matrix.sdk }}.zip" -o sdk.zip
+          unzip sdk.zip
+          sudo installer -store -pkg "PlaydateSDK.pkg" -target /
           cat ~/.Playdate/config
 
       - name: install SDK (linux)
