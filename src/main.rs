@@ -68,8 +68,15 @@ fn playdate_sdk_path() -> Result<PathBuf, Error> {
 }
 
 fn playdate_sdk_path_default() -> Result<PathBuf, Error> {
-    let home_dir = dirs::home_dir().ok_or(anyhow!("Can't find home dir"))?;
-    Ok(home_dir.join(SDK_DIR).join("PlaydateSDK"))
+    let sdk_location = match env::var("PLAYDATE_SDK_PATH") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            // couldn't find the expected env variable, try defaulting to their home directory
+            let home_dir = dirs::home_dir().ok_or(anyhow!("Can't find home dir"))?;
+            home_dir.join(SDK_DIR).join("PlaydateSDK")
+        }
+    };
+    Ok(sdk_location)
 }
 
 fn playdate_c_api_path() -> Result<PathBuf, Error> {
