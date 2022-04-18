@@ -65,7 +65,7 @@ jobs:
           # - ubuntu-latest
           # - windows-latest
         sdk:
-          - latest
+          - 1.9.2
 
     steps:
       - uses: actions/checkout@v2
