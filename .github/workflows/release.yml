@@ -1,0 +1,142 @@
+name: Release
+on:
+  push:
+    tags:
+      - v?[0-9]+.[0-9]+**
+  workflow_call:
+    inputs:
+      tag:
+        description: Target tag
+        required: true
+        type: string
+
+jobs:
+  release:
+    name: page
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: extract the version tag
+        id: version
+        run: |
+          if [ -z "${{ inputs.tag }}" ]; then
+              echo ::set-output name=value::$(echo $GITHUB_REF | cut -d / -f 3)
+          else
+              echo ::set-output name=value::${{ inputs.tag }}
+          fi
+
+      # checkout needed for changelog only
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.version.outputs.value }}
+
+      - id: changelog
+        name: Generate Changelog
+        continue-on-error: true
+        run: |
+          RESULT_FILE=generated-changelog.md
+
+          echo "
+          ## TODO: EDIT ME BEFORE PUBLISH
+
+          [link-main]: ${{ github.event.repository.html_url }}/actions?query=workflow%3A%22Release%22
+          [badge-main]: ${{ github.event.repository.html_url }}/workflows/Release/badge.svg?event=workflow_call (main workflow)
+
+          __Please wait build completions for:__
+          - [![Build Release Tools][badge-main]][link-main]
+
+          Generate __changelog__:
+          - Just edit this
+          - Press the button "+ Auto-generate release notes"
+
+          - - -
+
+          ## Changelog
+
+          ...
+
+          <!-- Built with ♥️. -->
+          " > $RESULT_FILE
+
+          echo ::set-output name=file::"$RESULT_FILE"
+
+      - id: release
+        name: create release ${{ steps.version.outputs.value }}
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          draft: true
+          prerelease: true
+          tag_name: ${{ steps.version.outputs.value }}
+          release_name: ${{ steps.version.outputs.value }}
+          body_path: ${{ steps.changelog.outputs.file }}
+
+    outputs:
+      tag: ${{ steps.version.outputs.value }}
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      html_url: ${{ steps.release.outputs.html_url }}
+
+  build:
+    needs: release
+    name: ${{ matrix.os.name }}
+    runs-on: ${{ matrix.os.value }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - name: macos
+            value: macos-latest
+          - name: ubuntu
+            value: ubuntu-latest
+          - name: windows
+            value: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_INCREMENTAL: 0
+      RUSTUP_MAX_RETRIES: 10
+      CARGO_NET_RETRY: 10
+
+    steps:
+      - name: metadata
+        id: build-info
+        run: |
+          echo "${{ needs.release.outputs.tag }}"
+          echo "${{ needs.release.outputs.upload_url }}"
+
+          uname -a > build-info.txt
+          rustc -V >> build-info.txt
+          echo "::set-output name=arch::$(uname -m)"
+
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: build
+        run: cargo build --release
+
+      - name: upload
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: "target/release/crank${{ matrix.os.name == 'windows' && '.exe' || '' }}"
+          asset_name: crank-${{ matrix.os.name }}-${{ steps.build-info.outputs.arch }}
+          asset_content_type: application/octet-stream

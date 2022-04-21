@@ -68,7 +68,9 @@ jobs:
           - latest
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -78,7 +80,10 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install Crank
         run: cargo install --path . --force
 
       - name: Checkout Crankstart
@@ -87,34 +92,14 @@ jobs:
           repository: rtsuk/crankstart
           path: crankstart
 
-      - name: install SDK (macos)
-        if: ${{ matrix.os == 'macos-latest' }}
-        run: |
-          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/PlaydateSDK-${{ matrix.sdk }}.zip" -o sdk.zip
-          unzip sdk.zip
-          sudo installer -store -pkg "PlaydateSDK.pkg" -target /
-          cat ~/.Playdate/config
+      - name: Install Playdate SDK
+        id: sdk
+        # then use ${{ steps.sdk.outputs.root/version }}
+        uses: pd-rs/get-playdate-sdk@main
+        with:
+          version: ${{ matrix.sdk }}
 
-      - name: install SDK (linux)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: |
-          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/Linux/PlaydateSDK-${{ matrix.sdk }}.tar.gz" -o sdk.tar.gz
-          mkdir sdk
-          tar -zxf sdk.tar.gz -C sdk
-          cd sdk/*/
-          sudo ./setup.sh || true
-          echo "PLAYDATE_SDK_PATH=$PWD" >> $GITHUB_ENV
-          echo "$PWD/bin" >> $GITHUB_PATH
-          # echo "$PLAYDATE_SDK_PATH" > "$HOME/.Playdate/config"
-
-      - name: install SDK (windows)
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: |
-          curl -L --silent --show-error --fail "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-${{ matrix.sdk }}.exe" -o sdk.exe
-          # TODO: install sdk.exe
-          ./sdk.exe --quiet
-
-      - name: info
+      - name: Info
         run: |
           which pdc
           pdc --version
