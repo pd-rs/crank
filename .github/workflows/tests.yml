@@ -68,7 +68,9 @@ jobs:
           - latest
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
+
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -78,7 +80,10 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v1
+
+      - name: Install Crank
         run: cargo install --path . --force
 
       - name: Checkout Crankstart
@@ -94,7 +99,7 @@ jobs:
         with:
           version: ${{ matrix.sdk }}
 
-      - name: info
+      - name: Info
         run: |
           which pdc
           pdc --version
