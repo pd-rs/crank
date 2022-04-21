@@ -140,3 +140,44 @@ jobs:
           asset_path: "target/release/crank${{ matrix.os.name == 'windows' && '.exe' || '' }}"
           asset_name: crank-${{ matrix.os.name }}-${{ steps.build-info.outputs.arch }}${{ matrix.os.name == 'windows' && '.exe' || '' }}"
           asset_content_type: application/octet-stream
+
+  notify:
+    needs: [release, build]
+    name: notify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: notify
+        # TODO: create here "send notification for members about release"
+        # https://github.com/marketplace?type=actions&query=notify
+        run: |
+          echo "New release draft for tag ${{ needs.release.outputs.tag }}!
+          Needs you review, then publish. ${{ needs.release.outputs.html_url }}"
+
+  deploy:
+    # disabled for now
+    if: ${{ false }}
+    needs: [release, build]
+    name: deploy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - uses: katyo/publish-crates@v1
+        with:
+          # TODO: register the secret
+          registry-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          # TODO: test it, read logs, then disable dry-run:
+          dry-run: true
