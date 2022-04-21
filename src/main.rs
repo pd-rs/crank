@@ -634,7 +634,7 @@ impl Package {
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "clank")]
+#[structopt(name = "crank")]
 struct Opt {
     #[structopt(short, long)]
     verbose: bool,
