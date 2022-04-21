@@ -1,0 +1,50 @@
+# This workflow checking and comparing crate version by cargo-metadata with latest tag by git,
+# then trying to push new tag, the trigger release workflow.
+name: Tag Version
+on:
+  push:
+    branches:
+      - main
+      - master
+      - release-v?[0-9]+.[0-9]+**
+
+jobs:
+  push-tag:
+    name: Tag crate version
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: install rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - id: new_tag
+        name: try create tag
+        uses: pontem-network/tag-crate-version@v0.1.0
+        with:
+          # crate: crank # optional, auto-determable
+          version-to-tag: "$1"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pwd: ${{github.workspace}}
+
+    outputs:
+      crate: ${{ steps.new_tag.outputs.crate }}
+      version: ${{ steps.new_tag.outputs.current }}
+      tag: ${{ steps.new_tag.outputs.tag }}
+      prev-tag: ${{ steps.new_tag.outputs.previous }}
+      success: ${{ steps.new_tag.outputs.success }}
+
+  release:
+    needs: push-tag
+    if: needs.push-tag.outputs.success
+    uses: pd-rs/crank/.github/workflows/release.yml@main
+    # ^should be:
+    # uses: ${{ github.event.repository.full_name }}/.github/workflows/release.yml@${{ github.ref }} or ${{ needs.push-tag.outputs.tag }}
+    # but github don't want implement two-pass- templator for it, yet :(
+    with:
+      tag: ${{ needs.push-tag.outputs.tag }}
