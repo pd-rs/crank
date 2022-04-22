@@ -1,10 +1,14 @@
 [package]
-name = "crank"
-version = "0.2.4"
-authors = ["Rob Tsuk <robtsuk@google.com>"]
+name = "crankstart-cli"
+version = "0.2.5"
+authors = ["Rob Tsuk <rob@tsuk.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "crank"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.31"
