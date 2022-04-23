@@ -1,6 +1,6 @@
 # This workflow checking and comparing crate version by cargo-metadata with latest tag by git,
 # then trying to push new tag, the trigger release workflow.
-name: Tag Version
+name: Tagger
 on:
   push:
     branches:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   push-tag:
-    name: Tag crate version
+    name: tag crate version
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -25,7 +25,7 @@ jobs:
 
       - id: new_tag
         name: try create tag
-        uses: pontem-network/tag-crate-version@v0.1.0
+        uses: pontem-network/tag-crate-version@v0.1.1
         with:
           # crate: crank # optional, auto-determable
           version-to-tag: "$1"
