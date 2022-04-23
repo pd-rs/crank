@@ -5,6 +5,7 @@ use serde_derive::Deserialize;
 use std::{
     env,
     fs::{self},
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     thread, time,
@@ -90,9 +91,22 @@ fn playdate_c_api_path() -> Result<PathBuf, Error> {
 type Assets = Vec<String>;
 
 #[derive(Clone, Debug, Default, Deserialize)]
+struct Metadata {
+    name: Option<String>,
+    author: Option<String>,
+    description: Option<String>,
+    bundle_id: Option<String>,
+    version: Option<String>,
+    build_number: Option<u64>,
+    image_path: Option<String>,
+    launch_sound_path: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
 struct Target {
     name: String,
-    assets: Assets,
+    assets: Option<Assets>,
+    metadata: Option<Metadata>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -297,8 +311,12 @@ impl Build {
     ) -> Result<(), Error> {
         info!("copy_assets");
         let target = crank_manifest.get_target(target_name);
-        if let Some(target) = target {
-            for asset in &target.assets {
+        if let Some(Target {
+            assets: Some(assets),
+            ..
+        }) = target
+        {
+            for asset in assets {
                 let src_path = source_dir.join(asset);
                 let dst_path = dest_dir.join(asset);
                 info!("copy {:?} to {:?}", src_path, dst_path);
@@ -306,6 +324,50 @@ impl Build {
                     fs::create_dir_all(&dst_parent)?;
                 }
                 fs::copy(&src_path, &dst_path)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn make_manifest(
+        &self,
+        crank_manifest: &Manifest,
+        target_name: &str,
+        source_dir: &PathBuf,
+    ) -> Result<(), Error> {
+        info!("make_manifest");
+        let target = crank_manifest.get_target(target_name);
+        if let Some(Target {
+            metadata: Some(metadata),
+            ..
+        }) = target
+        {
+            let pdx_info_path = source_dir.join("pdxinfo");
+            let mut pdx_info = fs::File::create(&pdx_info_path)?;
+
+            if let Some(name) = &metadata.name {
+                writeln!(pdx_info, "name={}", name)?;
+            }
+            if let Some(author) = &metadata.author {
+                writeln!(pdx_info, "author={}", author)?;
+            }
+            if let Some(description) = &metadata.description {
+                writeln!(pdx_info, "description={}", description)?;
+            }
+            if let Some(bundle_id) = &metadata.bundle_id {
+                writeln!(pdx_info, "bundleID={}", bundle_id)?;
+            }
+            if let Some(version) = &metadata.version {
+                writeln!(pdx_info, "version={}", version)?;
+            }
+            if let Some(build_number) = &metadata.build_number {
+                writeln!(pdx_info, "buildNumber={}", build_number)?;
+            }
+            if let Some(image_path) = &metadata.image_path {
+                writeln!(pdx_info, "imagePath={}", image_path)?;
+            }
+            if let Some(launch_sound_path) = &metadata.launch_sound_path {
+                writeln!(pdx_info, "launchSoundPath={}", launch_sound_path)?;
             }
         }
         Ok(())
@@ -566,7 +628,11 @@ impl Build {
         }
 
         let overall_target_dir = project_path.join("target");
-        let game_title = to_title_case(&target_name);
+        let game_title = crank_manifest
+            .get_target(&target_name)
+            .and_then(|target| target.metadata.as_ref())
+            .and_then(|metadata| metadata.name.clone())
+            .unwrap_or(to_title_case(&target_name));
         let source_path = self.make_source_dir(&overall_target_dir, &game_title)?;
         let dest_path = overall_target_dir.join(format!("{}.pdx", &game_title));
         if dest_path.exists() {
@@ -581,6 +647,7 @@ impl Build {
             self.link_binary(&target_dir, &target_name, &lib_file)?;
             self.make_binary(&target_dir, &target_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
+            self.make_manifest(&crank_manifest, &target_name, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
             if self.run {
                 self.run_target(&dest_path, &game_title)?;
@@ -589,6 +656,7 @@ impl Build {
             target_dir = target_dir.join(dir_name).join(target_path);
             self.link_dylib(&target_dir, &target_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
+            self.make_manifest(&crank_manifest, &target_name, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
             if self.run {
                 self.run_simulator(&dest_path)?;
