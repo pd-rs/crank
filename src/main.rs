@@ -18,14 +18,18 @@ use anyhow::Context;
 
 mod config;
 
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 const GCC_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-gcc";
+#[cfg(all(unix, not(target_os = "macos")))]
+const GCC_PATH_STR: &'static str = "arm-none-eabi-gcc";
 #[cfg(windows)]
 const GCC_PATH_STR: &'static str =
     r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-gcc.exe";
 
-#[cfg(unix)]
+#[cfg(target_os = "macos")]
 const OBJCOPY_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-objcopy";
+#[cfg(all(unix, not(target_os = "macos")))]
+const OBJCOPY_PATH_STR: &'static str = "arm-none-eabi-objcopy";
 #[cfg(windows)]
 const OBJCOPY_PATH_STR: &'static str =
     r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-objcopy.exe";
@@ -367,13 +371,29 @@ impl Build {
         info!("run_target");
 
         let pdutil_path = playdate_sdk_path()?.join("bin").join(PDUTIL_NAME);
-        let modem_path = Path::new("/dev/cu.usbmodemPDU1_Y0005491");
-        let data_path = Path::new("/Volumes/PLAYDATE");
+        #[cfg(target_os = "macos")]
+        let modem_path = PathBuf::from(
+            env::var("PLAYDATE_SERIAL_DEVICE")
+                .unwrap_or(String::from("/dev/cu.usbmodemPDU1_Y0005491")),
+        );
+        #[cfg(not(target_os = "macos"))]
+        let modem_path = PathBuf::from(
+            env::var("PLAYDATE_SERIAL_DEVICE").unwrap_or(String::from("/dev/ttyACM0")),
+        );
+        #[cfg(target_os = "macos")]
+        let data_path = PathBuf::from(
+            env::var("PLAYDATE_MOUNT_POINT").unwrap_or(String::from("/Volumes/PLAYDATE")),
+        );
+        #[cfg(not(target_os = "macos"))]
+        let data_path = PathBuf::from(env::var("PLAYDATE_MOUNT_POINT").unwrap_or(format!(
+            "/run/media/{}/PLAYDATE",
+            env::var("USER").expect("user")
+        )));
 
         let duration = time::Duration::from_millis(100);
         if modem_path.exists() {
             let mut cmd = Command::new(&pdutil_path);
-            cmd.arg(modem_path).arg("datadisk").arg(pdx_dir);
+            cmd.arg(modem_path.clone()).arg("datadisk").arg(pdx_dir);
             info!("datadisk cmd: {:#?}", cmd);
             let _ = cmd.status()?;
 
@@ -394,10 +414,21 @@ impl Build {
         fs::create_dir(&games_target_dir).ok();
         Self::copy_directory(&pdx_dir, &games_target_dir)?;
 
-        let mut cmd = Command::new("diskutil");
-        cmd.arg("eject").arg(&data_path);
-        info!("eject cmd: {:#?}", cmd);
-        let _ = cmd.status()?;
+        #[cfg(target_os = "macos")]
+        {
+            let mut cmd = Command::new("diskutil");
+            cmd.arg("eject").arg(&data_path);
+            info!("eject cmd: {:#?}", cmd);
+            let _ = cmd.status()?;
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let mut cmd = Command::new("eject");
+            cmd.arg(&data_path);
+            info!("eject cmd: {:#?}", cmd);
+            let _ = cmd.status()?;
+        }
 
         while !modem_path.exists() {
             thread::sleep(duration);
@@ -456,11 +487,18 @@ impl Build {
             cmd.status()?
         };
 
-        #[cfg(unix)]
+        #[cfg(target_os = "macos")]
         let status = {
             let mut cmd = Command::new("open");
             cmd.arg("-a");
             cmd.arg("Playdate Simulator");
+            cmd.arg(&pdx_path);
+            cmd.status()?
+        };
+
+        #[cfg(all(unix, not(target_os = "macos")))]
+        let status = {
+            let mut cmd = Command::new("PlaydateSimulator");
             cmd.arg(&pdx_path);
             cmd.status()?
         };
@@ -628,6 +666,10 @@ impl Package {
                 .arg("-R")
                 .arg(target_archive)
                 .status()?;
+        }
+        #[cfg(target_os = "linux")]
+        if self.reveal {
+            let _ = Command::new("xdg-open").arg(parent).status()?;
         }
         Ok(())
     }
