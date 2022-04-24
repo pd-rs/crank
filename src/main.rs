@@ -468,9 +468,14 @@ impl Build {
             thread::sleep(duration);
         }
 
-        thread::sleep(duration * 5);
-
         let games_dir = data_path.join("Games");
+
+        // This prevents issues that occur when the PLAYDATE volume is mounted
+        // but not all of the inner folders are available yet.
+        while !games_dir.exists() {
+            thread::sleep(duration);
+        }
+
         let game_device_dir = format!("{}.pdx", example_title);
         let games_target_dir = games_dir.join(&game_device_dir);
         fs::create_dir(&games_target_dir).ok();
