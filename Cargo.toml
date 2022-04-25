@@ -3,6 +3,9 @@ name = "crankstart-cli"
 version = "0.2.5"
 authors = ["Rob Tsuk <rob@tsuk.com>"]
 edition = "2018"
+description = "A command line tool for use with [Crankstart](https://github.com/pd-rs/crankstart)."
+license = "MIT"
+repository = "https://github.com/pd-rs/crank"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
