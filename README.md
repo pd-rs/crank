@@ -20,9 +20,7 @@ Rust toolchains __nightly__ needed for [build-std][] feature, installed with `ru
 
 Since crank is not yet on crates.io, one needs to download it with git and install it with cargo.
 
-    git clone https://github.com/rtsuk/crank.git
-    cd crank
-    cargo install --path . --force
+    cargo install --git=https://github.com/pd-rs/crank
 
 After that one should be able to run crank
 
