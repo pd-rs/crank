@@ -520,15 +520,15 @@ impl Build {
         info!("link_dylib");
 
         let (lib_target_path, source_dir_path) = if cfg!(target_os = "macos") {
-            let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name));
+            let lib_target_path = target_dir.join(format!("lib{}.dylib", example_name.replace("-", "_")));
             let source_dir_path = source_dir.join("pdex.dylib");
             (lib_target_path, source_dir_path)
         } else if cfg!(unix) {
-            let lib_target_path = target_dir.join(format!("lib{}.so", example_name));
+            let lib_target_path = target_dir.join(format!("lib{}.so", example_name.replace("-", "_")));
             let source_dir_path = source_dir.join("pdex.so");
             (lib_target_path, source_dir_path)
         } else if cfg!(windows) {
-            let lib_target_path = target_dir.join(format!("{}.dll", example_name));
+            let lib_target_path = target_dir.join(format!("{}.dll", example_name.replace("-", "_")));
             let source_dir_path = source_dir.join("pdex.dll");
             (lib_target_path, source_dir_path)
         } else {
