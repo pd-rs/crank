@@ -46,4 +46,4 @@ The command `build` is a bit of a misnomer, as it both builds, creates a .pdx di
 
 In order to include assets like images, crank optionally reads a Crank.toml file with lists of files to include in the .pdx directory. See the wrapper repository for an example.
 
-Crank is only regularly tested on Mac, but has worked on Windows in the past.
+Crank is only regularly tested on Mac, but has worked on Windows and Linux in the past.
