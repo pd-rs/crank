@@ -1,6 +1,6 @@
 [package]
 name = "crankstart-cli"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["Rob Tsuk <rob@tsuk.com>"]
 edition = "2018"
 description = "A command line tool for use with [Crankstart](https://github.com/pd-rs/crankstart)."
@@ -24,5 +24,5 @@ serde = "1.0.110"
 serde_derive = "1.0.110"
 structopt = "0.3.14"
 toml = "0.5.6"
-zip = "0.5.6"
-zip-extensions = "0.5.0"
+zip = "0.5"
+zip-extensions = "0.6"
