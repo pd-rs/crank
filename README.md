@@ -14,6 +14,8 @@ Rust toolchains __nightly__ needed for [build-std][] feature, installed with `ru
 
 [build-std]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#build-std
 
+All of the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
+
 ## Installation
 
 Since crank is not yet on crates.io, one needs to download it with git and install it with cargo.
