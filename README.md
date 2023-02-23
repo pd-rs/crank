@@ -4,8 +4,6 @@ Crank is a wrapper for cargo when creating games for the [Playdate handheld gami
 
 This software is not sponsored or supported by Panic.
 
-Note: Development is on hold until the SDK is made available to the public.
-
 ## Requirements
 
 The Playdate SDK installed in `$HOME/Developer/PlaydateSDK`.
@@ -15,6 +13,8 @@ Rust, easiest installed via [rustup](https://rustup.rs)
 Rust toolchains __nightly__ needed for [build-std][] feature, installed with `rustup install nightly && rustup component add rust-src --toolchain nightly`, if you want to build for the Playdate device rather than the simulator.
 
 [build-std]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#build-std
+
+All of the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
 
 ## Installation
 
@@ -46,4 +46,4 @@ The command `build` is a bit of a misnomer, as it both builds, creates a .pdx di
 
 In order to include assets like images, crank optionally reads a Crank.toml file with lists of files to include in the .pdx directory. See the wrapper repository for an example.
 
-Crank is only regularly tested on Mac, but has worked on Windows in the past.
+Crank is only regularly tested on Mac, but has worked on Windows and Linux in the past.
