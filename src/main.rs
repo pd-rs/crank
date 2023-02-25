@@ -459,6 +459,9 @@ impl Build {
             info!("datadisk cmd: {:#?}", cmd);
             let _ = cmd.status()?;
 
+            // Note: this device doesn't disappear on one Linux developer's system; is this always
+            // true?  Should we instead have a maximum delay and then continue regardless?
+            #[cfg(not(target_os = "linux"))]
             while modem_path.exists() {
                 thread::sleep(duration);
             }
