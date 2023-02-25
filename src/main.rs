@@ -467,6 +467,9 @@ impl Build {
             }
         }
 
+        #[cfg(target_os = "linux")]
+        println!("If your OS does not automatically mount your Playdate, please do so now.");
+
         while !data_path.exists() {
             thread::sleep(duration);
         }
