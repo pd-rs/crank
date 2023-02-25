@@ -500,6 +500,8 @@ impl Build {
             let _ = cmd.status()?;
         }
 
+        println!("Please press 'A' on the Playdate to exit Data Disk mode.");
+
         while !modem_path.exists() {
             thread::sleep(duration);
         }
