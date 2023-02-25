@@ -504,6 +504,11 @@ impl Build {
             thread::sleep(duration);
         }
 
+        // Note: this sleep was determined by testing on one Linux system and may not be
+        // consistent; is there a better marker that we're ready to call pdutil run?
+        #[cfg(target_os = "linux")]
+        thread::sleep(duration * 10);
+
         let mut cmd = Command::new(&pdutil_path);
         cmd.arg(modem_path)
             .arg("run")
