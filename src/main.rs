@@ -467,6 +467,7 @@ impl Build {
             }
         }
 
+        #[cfg(not(target_os = "macos"))]
         println!("If your OS does not automatically mount your Playdate, please do so now.");
 
         while !data_path.exists() {
@@ -502,6 +503,7 @@ impl Build {
             let _ = cmd.status()?;
         }
 
+        #[cfg(not(target_os = "macos"))]
         println!("Please press 'A' on the Playdate to exit Data Disk mode.");
 
         while !modem_path.exists() {
