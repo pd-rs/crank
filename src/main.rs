@@ -459,10 +459,16 @@ impl Build {
             info!("datadisk cmd: {:#?}", cmd);
             let _ = cmd.status()?;
 
+            // Note: this device doesn't disappear on one Linux developer's system; is this always
+            // true?  Should we instead have a maximum delay and then continue regardless?
+            #[cfg(not(target_os = "linux"))]
             while modem_path.exists() {
                 thread::sleep(duration);
             }
         }
+
+        #[cfg(target_os = "linux")]
+        println!("If your OS does not automatically mount your Playdate, please do so now.");
 
         while !data_path.exists() {
             thread::sleep(duration);
@@ -497,9 +503,17 @@ impl Build {
             let _ = cmd.status()?;
         }
 
+        #[cfg(target_os = "linux")]
+        println!("Please press 'A' on the Playdate to exit Data Disk mode.");
+
         while !modem_path.exists() {
             thread::sleep(duration);
         }
+
+        // Note: this sleep was determined by testing on one Linux system and may not be
+        // consistent; is there a better marker that we're ready to call pdutil run?
+        #[cfg(target_os = "linux")]
+        thread::sleep(duration * 10);
 
         let mut cmd = Command::new(&pdutil_path);
         cmd.arg(modem_path)
