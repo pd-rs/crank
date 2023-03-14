@@ -10,9 +10,9 @@ The Playdate SDK installed in `$HOME/Developer/PlaydateSDK`.
 
 Rust, easiest installed via [rustup](https://rustup.rs)
 
-Rust toolchains __nightly__ needed for [build-std][] feature, installed with `rustup install nightly && rustup component add rust-src --toolchain nightly`, if you want to build for the Playdate device rather than the simulator.
+Rust toolchain __nightly__ needed for the unstable `aloc` feature, installed with `rustup install nightly`.
 
-[build-std]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html#build-std
+If you want want to build for the Playdate device, you will need the `thumbv7em-none-eabihf` target. Added with `rustup target add thumbv7em-none-eabihf`
 
 All of the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
 
