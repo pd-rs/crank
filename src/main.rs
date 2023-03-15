@@ -17,6 +17,9 @@ use zip_extensions::zip_create_from_directory_with_options;
 #[cfg(unix)]
 use anyhow::Context;
 
+#[cfg(target_os = "linux")]
+use walkdir::WalkDir;
+
 mod config;
 
 #[cfg(target_os = "macos")]
@@ -438,7 +441,13 @@ impl Build {
             env::var("PLAYDATE_SERIAL_DEVICE")
                 .unwrap_or(String::from("/dev/cu.usbmodemPDU1_Y0005491")),
         );
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "linux")]
+        let modem_path = PathBuf::from(
+            env::var("PLAYDATE_SERIAL_DEVICE")
+                // On Linux, we can use named symlinks to find the device in most cases
+                .unwrap_or(find_serial_device().unwrap_or(String::from("/dev/ttyACM0"))),
+        );
+        #[cfg(all(not(target_os = "linux"), not(target_os = "macos")))]
         let modem_path = PathBuf::from(
             env::var("PLAYDATE_SERIAL_DEVICE").unwrap_or(String::from("/dev/ttyACM0")),
         );
@@ -684,6 +693,75 @@ impl Build {
 
         Ok((dest_path, game_title))
     }
+}
+
+#[cfg(target_os = "linux")]
+/// Finds the canonical (resolved) path for the Playdate serial device.  If multiple Playdate devices are
+/// found, warns and returns the first.  If none is found, returns None.  If any error occurs,
+/// returns None.
+fn find_serial_device() -> Option<String> {
+    // Walk through this directory to find Playdate device filenames
+    let directory = "/dev/serial/by-id";
+    let filename_prefix = "usb-Panic_Inc_Playdate_PDU1-";
+
+    let walker = WalkDir::new(directory)
+        .min_depth(1)
+        .max_depth(1)
+        // Don't follow links (yet) because we want file_name to give us the name in this directory
+        .follow_links(false)
+        // If there are multiple, we let the user know and take the first; sort so it's consistent.
+        // If the user wants a different one, they can set PLAYDATE_SERIAL_DEVICE.
+        .sort_by_file_name()
+        .into_iter()
+        .filter_entry(|e| {
+            e.file_name()
+                .to_str()
+                .map(|s| s.starts_with(filename_prefix))
+                .unwrap_or(false)
+        })
+        .filter_map(|e| e.ok());
+
+    // See what we found
+    let mut result: Option<PathBuf> = None;
+    for entry in walker {
+        match result {
+            // If there are multiple matches, let the user know, and return the first
+            Some(ref existing) => {
+                println!(
+                    "Found multiple Playdate devices in {}, using first: {}",
+                    directory,
+                    existing.display()
+                );
+                break;
+            }
+            None => {
+                result = Some(entry.into_path());
+            }
+        }
+    }
+
+    if let Some(path) = result {
+        // Fully resolve the link, which should result in something like "/dev/ttyACM0"
+        let resolved = fs::canonicalize(path).ok()?;
+        // Quick check that it did what we expected
+        if resolved
+            .to_str()
+            .map(|s| s.contains("tty"))
+            .unwrap_or(false)
+        {
+            println!("Resolved Playdate serial device to: {}", resolved.display());
+            // Other code expects String paths
+            return Some(resolved.to_string_lossy().into_owned());
+        } else {
+            eprintln!(
+                "Warning: found a device at '{}' but it's not named like we expect.  Using the default.",
+                resolved.display()
+            );
+            return None;
+        }
+    }
+
+    None
 }
 
 #[derive(Debug, StructOpt)]
