@@ -12,7 +12,7 @@ Rust, easiest installed via [rustup](https://rustup.rs)
 
 Rust toolchain __nightly__ needed for the unstable `aloc` feature, installed with `rustup install nightly`.
 
-If you want want to build for the Playdate device, you will need the `thumbv7em-none-eabihf` target. Added with `rustup target add thumbv7em-none-eabihf`
+If you want want to build for the Playdate device, you will need the `thumbv7em-none-eabihf` target. Added with `rustup +nightly target add thumbv7em-none-eabihf`
 
 All of the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
 
