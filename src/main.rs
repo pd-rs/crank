@@ -3,6 +3,7 @@ use inflector::cases::titlecase::to_title_case;
 use log::{debug, info};
 use serde_derive::Deserialize;
 use std::{
+    collections::HashMap,
     env,
     fs::{self},
     io::Write,
@@ -29,14 +30,6 @@ const GCC_PATH_STR: &'static str = "arm-none-eabi-gcc";
 #[cfg(windows)]
 const GCC_PATH_STR: &'static str =
     r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-gcc.exe";
-
-#[cfg(target_os = "macos")]
-const OBJCOPY_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-objcopy";
-#[cfg(all(unix, not(target_os = "macos")))]
-const OBJCOPY_PATH_STR: &'static str = "arm-none-eabi-objcopy";
-#[cfg(windows)]
-const OBJCOPY_PATH_STR: &'static str =
-    r"C:\Program Files (x86)\GNU Tools Arm Embedded\9 2019-q4-major\bin\arm-none-eabi-objcopy.exe";
 
 #[cfg(unix)]
 #[allow(unused)]
@@ -203,10 +196,11 @@ impl Build {
     }
 
     fn compile_setup(&self, target_dir: &PathBuf) -> Result<(), Error> {
-        let gcc_compile_static_args = "-g -c -mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
-        -mfpu=fpv4-sp-d16 -D__FPU_USED=1 -O2 -falign-functions=16 -fomit-frame-pointer \
+        let gcc_compile_static_args = "-g3 -c -mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
+        -mfpu=fpv5-sp-d16 -D__FPU_USED=1 -O2 -falign-functions=16 -fomit-frame-pointer \
         -gdwarf-2 -Wall -Wno-unused -Wstrict-prototypes -Wno-unknown-pragmas -fverbose-asm \
-        -ffunction-sections -fdata-sections -DTARGET_PLAYDATE=1 -DTARGET_EXTENSION=1";
+        -Wdouble-promotion -mword-relocations -fno-common \
+        -ffunction-sections -fdata-sections -DTARGET_PLAYDATE=1 -DTARGET_EXTENSION=1 -fno-exceptions";
         let args_iter = gcc_compile_static_args.split(" ");
         let playdate_c_api_path = playdate_c_api_path()?;
         let setup_path = Self::setup_path()?;
@@ -232,8 +226,8 @@ impl Build {
         example_name: &str,
         lib_path: &PathBuf,
     ) -> Result<(), Error> {
-        let gcc_link_static_args = "-mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
-        -mfpu=fpv4-sp-d16 -D__FPU_USED=1 -Wl,--gc-sections,--no-warn-mismatch";
+        let gcc_link_static_args = "-nostartfiles -mthumb -mcpu=cortex-m7 -mfloat-abi=hard \
+        -mfpu=fpv5-sp-d16 -D__FPU_USED=1 -Wl,--cref,--gc-sections,--no-warn-mismatch,--emit-relocs -fno-exceptions";
 
         let mut cmd = Command::new(GCC_PATH_STR);
         let setup_obj_path = target_dir.join("setup.o");
@@ -253,6 +247,9 @@ impl Build {
         cmd.arg("-o");
         cmd.arg(target_path);
 
+        cmd.arg("--entry");
+        cmd.arg("eventHandlerShim"); // declared in setup.c
+
         info!("link_binary: {:?}", cmd);
 
         let status = cmd.status()?;
@@ -269,26 +266,11 @@ impl Build {
         example_name: &str,
         source_dir: &PathBuf,
     ) -> Result<(), Error> {
-        let mut cmd = Command::new(OBJCOPY_PATH_STR);
-
         let source_path = target_dir.join(format!("{}.elf", example_name));
-        let dest_path = target_dir.join(format!("{}.bin", example_name));
+        let source_dir_path = source_dir.join("pdex.elf");
 
-        cmd.arg("-O");
-        cmd.arg("binary");
-        cmd.arg(&source_path);
-        cmd.arg(&dest_path);
-
-        info!("make_binary: {:?}", cmd);
-
-        let status = cmd.status()?;
-        if !status.success() {
-            bail!("objcopy failed with error {:?}", status);
-        }
-
-        let source_dir_path = source_dir.join("pdex.bin");
-
-        fs::copy(&dest_path, &source_dir_path)?;
+        // just copy/rename, from v2.0 pdex.bin producing by pdc by pdex.elf
+        fs::copy(&source_path, &source_dir_path)?;
 
         Ok(())
     }
@@ -380,15 +362,21 @@ impl Build {
         info!("run_pdc");
         let pdc_path = playdate_sdk_path()?.join("bin").join(PDC_NAME);
         let mut cmd = Command::new(pdc_path);
+        cmd.arg("--strip");
+        //   cmd.arg("--verbose");
         cmd.arg(source_dir);
         cmd.arg(dest_dir);
 
         debug!("{:?}", cmd);
 
-        let status = cmd.status()?;
+        let status = cmd
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .status()?;
         if !status.success() {
             bail!("pdc failed with error {:?}", status);
         }
+
         Ok(())
     }
 
@@ -644,10 +632,29 @@ impl Build {
         if self.device {
             args.push("--target");
             args.push("thumbv7em-none-eabihf");
+
+            args.push("-Zbuild-std=core,alloc");
         }
+
+        let envs = if self.device {
+            let mut map = HashMap::new();
+            map.insert(
+                "RUSTFLAGS",
+                [
+                    "-Ctarget-cpu=cortex-m7",
+                    "-Clink-args=--emit-relocs",
+                    "-Crelocation-model=pic",
+                ]
+                .join(" "),
+            );
+            map
+        } else {
+            Default::default()
+        };
 
         let mut command = Command::new("cargo");
         command.args(args);
+        command.envs(envs);
         info!("build command: {:?}", command);
 
         let status = command.status()?;
