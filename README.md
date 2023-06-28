@@ -7,7 +7,8 @@ This software is not sponsored or supported by Panic.
 ## Requirements
 
  * The Playdate SDK installed in `$HOME/Developer/PlaydateSDK` on Linux or MacOS, `$HOME/Documents/PlaydateSDK` on Window, or at the path specified by the `$PLAYDATE_SDK` environment variable.
- * Rust, easiest installed via [rustup](https://rustup.rs)
+ * Rust, easiest installed via [rustup](https://rustup.rs).
+ * Switch to the nightly toolchain using `rustup toolchain install nightly`, required for the `build-std` feature.
  * If you want to build for the Playdate device, you will need the `thumbv7em-none-eabihf` target. Added with `rustup +nightly target add thumbv7em-none-eabihf`
  * All the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
 
