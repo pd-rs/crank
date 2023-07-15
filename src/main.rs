@@ -8,7 +8,7 @@ use std::{
     fs::{self},
     io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     thread, time,
 };
 use structopt::StructOpt;
@@ -206,6 +206,8 @@ impl Build {
         let setup_path = Self::setup_path()?;
         let mut command = Command::new(GCC_PATH_STR);
         command
+            .stdout(Stdio::null())
+            .stderr(Stdio::inherit())
             .args(args_iter)
             .arg(setup_path)
             .arg("-I")
