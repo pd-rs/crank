@@ -26,7 +26,7 @@ jobs:
           - windows-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Tests
         run: cargo test --verbose
@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -62,14 +62,13 @@ jobs:
         os:
           - macos-latest
           - ubuntu-latest
-          # TODO: enable windows and fix the crank
-          # - windows-latest
+          - windows-latest
         sdk:
           - latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -89,7 +88,7 @@ jobs:
       - name: Checkout Crankstart
         uses: actions/checkout@v3
         with:
-          repository: rtsuk/crankstart
+          repository: pd-rs/crankstart
           path: crankstart
 
       - name: Install Playdate SDK
@@ -116,3 +115,6 @@ jobs:
           # life game
           crank build --release --example=life
           crank build --release --example=life --device
+
+
+        # TODO: check existence of produced packages
