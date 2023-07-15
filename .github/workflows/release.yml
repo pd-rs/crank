@@ -30,7 +30,7 @@ jobs:
 
       # checkout needed for changelog only
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           fetch-depth: 0
           ref: ${{ steps.version.outputs.value }}
@@ -116,7 +116,7 @@ jobs:
           echo "::set-output name=arch::$(uname -m)"
 
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: rust toolchain
         uses: actions-rs/toolchain@v1
