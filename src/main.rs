@@ -232,6 +232,7 @@ impl Build {
         -mfpu=fpv5-sp-d16 -D__FPU_USED=1 -Wl,--cref,--gc-sections,--no-warn-mismatch,--emit-relocs -fno-exceptions";
 
         let mut cmd = Command::new(GCC_PATH_STR);
+        cmd.stdout(Stdio::null()).stderr(Stdio::inherit());
         let setup_obj_path = target_dir.join("setup.o");
         cmd.arg(setup_obj_path);
         cmd.arg(lib_path);
