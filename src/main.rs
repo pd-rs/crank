@@ -579,7 +579,7 @@ impl Build {
 
         #[cfg(all(unix, not(target_os = "macos")))]
         let status = {
-            let mut cmd = Command::new("PlaydateSimulator");
+            let mut cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
             cmd.arg(&pdx_path);
             cmd.status()?
         };
