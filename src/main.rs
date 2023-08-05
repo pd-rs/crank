@@ -8,7 +8,7 @@ use std::{
     fs::{self},
     io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
+    process::{Command, ExitStatus, Stdio},
     thread, time,
 };
 use structopt::StructOpt;
@@ -579,9 +579,15 @@ impl Build {
 
         #[cfg(all(unix, not(target_os = "macos")))]
         let status = {
-            let mut cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
+            let mut cmd = Command::new("PlaydateSimulator");
+
             cmd.arg(&pdx_path);
-            cmd.status()?
+            cmd.status().or_else(|_| -> Result<ExitStatus, Error> {
+                info!("falling back on SDK path");
+                cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
+                cmd.arg(&pdx_path);
+                Ok(cmd.status()?)
+            })?
         };
 
         if !status.success() {
