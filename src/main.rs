@@ -580,7 +580,6 @@ impl Build {
         #[cfg(all(unix, not(target_os = "macos")))]
         let status = {
             let mut cmd = Command::new("PlaydateSimulator");
-
             cmd.arg(&pdx_path);
             cmd.status().or_else(|_| -> Result<ExitStatus, Error> {
                 info!("falling back on SDK path");
