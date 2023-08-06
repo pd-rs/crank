@@ -90,6 +90,7 @@ jobs:
         with:
           repository: pd-rs/crankstart
           path: crankstart
+          ref: add-internal_features
 
       - name: Install Playdate SDK
         id: sdk
