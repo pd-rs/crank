@@ -1,0 +1,9 @@
+[toolchain]
+channel = "nightly"
+targets = [
+	"thumbv7em-none-eabihf", # not for crank, mainly for tests
+]
+components = [
+	"rust-src", # for build-std, same as target above
+	"rustfmt",
+]
