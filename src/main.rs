@@ -28,8 +28,7 @@ const GCC_PATH_STR: &'static str = "/usr/local/bin/arm-none-eabi-gcc";
 #[cfg(all(unix, not(target_os = "macos")))]
 const GCC_PATH_STR: &'static str = "arm-none-eabi-gcc";
 #[cfg(windows)]
-const GCC_PATH_STR: &'static str =
-    r"C:\Program Files (x86)\Arm GNU Toolchain arm-none-eabi\12.3 rel1\bin\arm-none-eabi-gcc.exe";
+const GCC_PATH_STR: &'static str = "arm-none-eabi-gcc.exe";
 
 #[cfg(unix)]
 #[allow(unused)]
