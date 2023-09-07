@@ -158,6 +158,10 @@ struct Build {
     #[structopt(long)]
     release: bool,
 
+    /// Enable build feature flags.
+    #[structopt(long)]
+    features: Vec<String>,
+
     /// Build a specific example from the examples/ dir.
     #[structopt(long)]
     example: Option<String>,
@@ -637,6 +641,12 @@ impl Build {
             args.push("--release");
         }
 
+        let features;
+        if !self.features.is_empty() {
+            features = format!("--features={}", self.features.join(","));
+            args.push(&features);
+        }
+
         if self.device {
             args.push("--target");
             args.push("thumbv7em-none-eabihf");
@@ -785,6 +795,10 @@ struct Package {
     #[structopt(long)]
     example: Option<String>,
 
+    /// Enable build feature flags.
+    #[structopt(long)]
+    features: Vec<String>,
+
     /// clean before building
     #[structopt(long)]
     clean: bool,
@@ -814,6 +828,7 @@ impl Package {
         let device_build = Build {
             device: true,
             example: self.example.clone(),
+            features: self.features.clone(),
             release: true,
             run: false,
         };
@@ -822,6 +837,7 @@ impl Package {
         let sim_build = Build {
             device: false,
             example: self.example.clone(),
+            features: self.features.clone(),
             release: true,
             run: false,
         };
