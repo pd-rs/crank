@@ -11,6 +11,7 @@ This software is not sponsored or supported by Panic.
  * Switch to the nightly toolchain using `rustup toolchain install nightly`, required for the `build-std` feature.
  * If you want to build for the Playdate device, you will need the `thumbv7em-none-eabihf` target. Added with `rustup +nightly target add thumbv7em-none-eabihf`
  * All the requirements listed in [Inside Playdate with C](https://sdk.play.date/inside-playdate-with-c#_prerequisites).
+     * The GCC ARM compiler must be available in your system `PATH` environment variable. (This is usually done for you by the installer).
 
 ## Installation
 
