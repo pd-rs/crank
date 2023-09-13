@@ -70,15 +70,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          components: rust-src
-          target: thumbv7em-none-eabihf
-          profile: minimal
-          override: true
-
       - name: Rust Cache
         uses: Swatinem/rust-cache@v1
 
