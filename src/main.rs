@@ -685,6 +685,7 @@ impl Build {
             .and_then(|target| target.metadata.as_ref())
             .and_then(|metadata| metadata.name.clone())
             .unwrap_or(to_title_case(&target_name));
+        let package_name = target_name.replace('-', "_");
         let source_path = self.make_source_dir(&overall_target_dir, &game_title)?;
         let dest_path = overall_target_dir.join(format!("{}.pdx", &game_title));
         if dest_path.exists() {
@@ -694,10 +695,10 @@ impl Build {
         let dir_name = if self.release { "release" } else { "debug" };
         if self.device {
             target_dir = target_dir.join("thumbv7em-none-eabihf").join(dir_name);
-            let lib_file = target_dir.join(format!("{}lib{}.a", target_path, target_name));
+            let lib_file = target_dir.join(format!("{}lib{}.a", target_path, package_name));
             self.compile_setup(&target_dir)?;
-            self.link_binary(&target_dir, &target_name, &lib_file)?;
-            self.make_binary(&target_dir, &target_name, &source_path)?;
+            self.link_binary(&target_dir, &package_name, &lib_file)?;
+            self.make_binary(&target_dir, &package_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.make_manifest(&crank_manifest, &target_name, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
@@ -706,7 +707,7 @@ impl Build {
             }
         } else {
             target_dir = target_dir.join(dir_name).join(target_path);
-            self.link_dylib(&target_dir, &target_name, &source_path)?;
+            self.link_dylib(&target_dir, &package_name, &source_path)?;
             self.copy_assets(&target_name, &project_path, &crank_manifest, &source_path)?;
             self.make_manifest(&crank_manifest, &target_name, &source_path)?;
             self.run_pdc(&source_path, &dest_path)?;
