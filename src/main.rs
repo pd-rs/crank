@@ -311,9 +311,11 @@ impl Build {
                 let dst_path = dest_dir.join(asset);
                 info!("copy {:?} to {:?}", src_path, dst_path);
                 if let Some(dst_parent) = dst_path.parent() {
-                    fs::create_dir_all(&dst_parent)?;
+                    fs::create_dir_all(&dst_parent)
+                        .with_context(|| format!("creating {dst_parent:?}"))?;
                 }
-                fs::copy(&src_path, &dst_path)?;
+                fs::copy(&src_path, &dst_path)
+                    .with_context(|| format!("copying from {src_path:?} to {dst_path:?}"))?;
             }
         }
         Ok(())
