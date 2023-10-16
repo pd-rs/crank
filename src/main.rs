@@ -4,11 +4,10 @@ use log::{debug, info};
 use serde_derive::Deserialize;
 use std::{
     collections::HashMap,
-    env,
-    fs::{self},
+    env, fs,
     io::Write,
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
     thread, time,
 };
 use structopt::StructOpt;
@@ -312,9 +311,11 @@ impl Build {
                 let dst_path = dest_dir.join(asset);
                 info!("copy {:?} to {:?}", src_path, dst_path);
                 if let Some(dst_parent) = dst_path.parent() {
-                    fs::create_dir_all(&dst_parent)?;
+                    fs::create_dir_all(&dst_parent)
+                        .with_context(|| format!("creating {dst_parent:?}"))?;
                 }
-                fs::copy(&src_path, &dst_path)?;
+                fs::copy(&src_path, &dst_path)
+                    .with_context(|| format!("copying from {src_path:?} to {dst_path:?}"))?;
             }
         }
         Ok(())
@@ -584,12 +585,13 @@ impl Build {
         let status = {
             let mut cmd = Command::new("PlaydateSimulator");
             cmd.arg(&pdx_path);
-            cmd.status().or_else(|_| -> Result<ExitStatus, Error> {
-                info!("falling back on SDK path");
-                cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
-                cmd.arg(&pdx_path);
-                Ok(cmd.status()?)
-            })?
+            cmd.status()
+                .or_else(|_| -> Result<std::process::ExitStatus, Error> {
+                    info!("falling back on SDK path");
+                    cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
+                    cmd.arg(&pdx_path);
+                    Ok(cmd.status()?)
+                })?
         };
 
         if !status.success() {
