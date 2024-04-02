@@ -611,7 +611,7 @@ impl Build {
         let mut args = if self.device {
             vec!["+nightly", "build"]
         } else {
-            vec!["build"]
+            vec!["+nightly", "build"]
         };
 
         let project_path = if let Some(manifest_path) = opt.manifest_path.as_ref() {
