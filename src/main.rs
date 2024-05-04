@@ -652,7 +652,6 @@ impl Build {
             args.push("thumbv7em-none-eabihf");
 
             args.push("-Zbuild-std=core,alloc");
-            args.push("-Zbuild-std-features=panic_immediate_abort");
         }
 
         let envs = if self.device {
