@@ -15,7 +15,6 @@ use structopt::StructOpt;
 use zip::{write::FileOptions, CompressionMethod};
 use zip_extensions::zip_create_from_directory_with_options;
 
-#[cfg(unix)]
 use anyhow::Context;
 
 #[cfg(target_os = "linux")]
@@ -378,7 +377,8 @@ impl Build {
         let status = cmd
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .status()?;
+            .status()
+            .with_context(|| format!("Command failed: {cmd:?}"))?;
         if !status.success() {
             bail!("pdc failed with error {:?}", status);
         }
