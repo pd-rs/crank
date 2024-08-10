@@ -660,6 +660,7 @@ impl Build {
                 "RUSTFLAGS",
                 [
                     "-Ctarget-cpu=cortex-m7",
+                    "-Ctarget-feature=-fp64", // Rev A hardware seems to not have 64-bit floating point support
                     "-Clink-args=--emit-relocs",
                     "-Crelocation-model=pic",
                     "-Cpanic=abort",
