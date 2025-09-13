@@ -8,7 +8,7 @@ use std::{
     fs::{self},
     io::Write,
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
     thread, time,
 };
 use structopt::StructOpt;
