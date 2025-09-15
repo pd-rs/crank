@@ -584,12 +584,13 @@ impl Build {
         let status = {
             let mut cmd = Command::new("PlaydateSimulator");
             cmd.arg(&pdx_path);
-            cmd.status().or_else(|_| -> Result<ExitStatus, Error> {
-                info!("falling back on SDK path");
-                cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
-                cmd.arg(&pdx_path);
-                Ok(cmd.status()?)
-            })?
+            cmd.status()
+                .or_else(|_| -> Result<std::process::ExitStatus, Error> {
+                    info!("falling back on SDK path");
+                    cmd = Command::new(playdate_sdk_path()?.join("bin").join("PlaydateSimulator"));
+                    cmd.arg(&pdx_path);
+                    Ok(cmd.status()?)
+                })?
         };
 
         if !status.success() {
